@@ -26,6 +26,15 @@ function formatTime(iso?: string): string | null {
   return d.toLocaleString()
 }
 
+/**
+ * A plain list of each data source's reachability. Deliberately has no
+ * heading of its own — every caller (currently just the header's Sources
+ * popover, see App.tsx) already supplies its own context for what this
+ * list is, and a redundant "Sources" label inside a panel whose trigger
+ * button already says "Sources" was exactly the kind of avoidable
+ * vertical space this component was pulled out of the always-visible
+ * sidebar to stop costing.
+ */
 export function SourceHealthPanel({
   health,
 }: {
@@ -33,9 +42,6 @@ export function SourceHealthPanel({
 }) {
   return (
     <section>
-      <h2 style={{ fontSize: 15, fontWeight: 600, letterSpacing: 0.1, margin: '0 0 14px' }}>
-        Sources
-      </h2>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {ORDER.map((name) => {
           const h = health[name]

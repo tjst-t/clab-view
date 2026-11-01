@@ -1,12 +1,11 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { fetchSnapshot, subscribeEvents, type EventStreamStatus } from './api/client'
 import type { LiveEvent, Snapshot } from './api/types'
-import { DependencyWaves } from './components/DependencyWaves'
 import { EventLog } from './components/EventLog'
 import { NodeList } from './components/NodeList'
 import { OperationsPanel } from './components/OperationsPanel'
-import { SakuteiSummaryPanel } from './components/SakuteiSummaryPanel'
+import { summarizeSourceHealth } from './components/colors'
 import { SourceHealthPanel } from './components/SourceHealthPanel'
 import { StatusDot } from './components/StatusDot'
 import { TopologyDiagram } from './components/TopologyDiagram'
@@ -20,12 +19,15 @@ import { applyTheme, getInitialTheme, type Theme } from './theme'
 const SNAPSHOT_POLL_INTERVAL_MS = 5000
 const MAX_EVENTS_SHOWN = 200
 
+type Tab = 'topology' | 'nodes'
+
 export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [events, setEvents] = useState<LiveEvent[]>([])
   const [streamStatus, setStreamStatus] = useState<EventStreamStatus>('connecting')
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
+  const [tab, setTab] = useState<Tab>('topology')
 
   useEffect(() => {
     applyTheme(theme)
@@ -84,13 +86,13 @@ export default function App() {
           display: 'flex',
           alignItems: 'baseline',
           gap: 12,
-          padding: '18px 24px',
+          padding: '12px 20px',
           borderBottom: '1px solid var(--border)',
         }}
       >
         <h1
           className="mono"
-          style={{ fontSize: 18, fontWeight: 600, letterSpacing: 0.2, margin: 0 }}
+          style={{ fontSize: 17, fontWeight: 600, letterSpacing: 0.2, margin: 0 }}
         >
           clab-view
         </h1>
@@ -99,20 +101,12 @@ export default function App() {
             generated {new Date(snapshot.generated_at).toLocaleTimeString()}
           </span>
         )}
+        <SourcesButton health={snapshot?.health} marginLeft={snapshot ? 14 : 'auto'} />
         <button
           type="button"
           onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
           className="mono"
-          style={{
-            marginLeft: snapshot ? 16 : 'auto',
-            background: 'var(--surface-raised)',
-            border: '1px solid var(--border)',
-            borderRadius: 4,
-            color: 'var(--text-muted)',
-            fontSize: 12,
-            padding: '5px 10px',
-            cursor: 'pointer',
-          }}
+          style={headerButtonStyle}
         >
           {theme === 'dark' ? 'light theme' : 'dark theme'}
         </button>
@@ -121,134 +115,95 @@ export default function App() {
       {snapshotError && (
         <div
           style={{
-            margin: '16px 24px 0',
-            padding: 12,
+            margin: '12px 20px 0',
+            padding: 10,
             border: '1px solid var(--status-down)',
             borderRadius: 4,
             color: 'var(--status-down)',
+            fontSize: 13,
           }}
         >
           <strong>Couldn't reach the backend:</strong> {snapshotError}
         </div>
       )}
 
-      <div className="layout" style={{ flex: 1 }}>
-        <aside
+      <main style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '14px 20px', flex: 1 }}>
+        <section
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 6,
-            padding: 16,
+            padding: '10px 14px 14px',
           }}
         >
-          {snapshot ? (
-            <SourceHealthPanel health={snapshot.health} />
-          ) : (
-            <Loading />
-          )}
-        </aside>
-
-        <main style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          <section>
-            <h2 style={sectionTitle}>Topology</h2>
-            {snapshot ? (
-              <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} theme={theme} />
+          <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid var(--border)' }}>
+            <TabButton active={tab === 'topology'} onClick={() => setTab('topology')}>
+              Topology
+            </TabButton>
+            <TabButton active={tab === 'nodes'} onClick={() => setTab('nodes')}>
+              Nodes{snapshot ? ` (${snapshot.nodes.length})` : ''}
+            </TabButton>
+          </div>
+          <div style={{ paddingTop: 14 }}>
+            {tab === 'topology' ? (
+              snapshot ? (
+                <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} theme={theme} />
+              ) : (
+                <Loading />
+              )
+            ) : snapshot ? (
+              <NodeList nodes={snapshot.nodes} />
             ) : (
               <Loading />
             )}
-          </section>
+          </div>
+        </section>
 
-          {snapshot?.actions_enabled && (
-            <section
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                padding: 16,
-              }}
-            >
-              <h2 style={sectionTitle}>Operations</h2>
-              <OperationsPanel />
-            </section>
-          )}
-
+        {snapshot?.actions_enabled && (
           <section
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 6,
-              padding: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 20,
+              padding: 14,
             }}
           >
-            <div>
-              <h2 style={sectionTitle}>Sakutei</h2>
-              {snapshot ? (
-                <SakuteiSummaryPanel
-                  summary={snapshot.sakutei_summary}
-                  stopReasons={snapshot.sakutei_stop_reasons}
-                />
-              ) : (
-                <Loading />
-              )}
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 18 }}>
-              <h3 style={subsectionTitle}>Dependency graph (waves)</h3>
-              {snapshot ? (
-                <DependencyWaves graph={snapshot.sakutei_graph} />
-              ) : (
-                <Loading />
-              )}
-            </div>
+            <h2 style={sectionTitle}>Operations</h2>
+            <OperationsPanel />
           </section>
+        )}
 
-          <section
+        <section
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: 14,
+          }}
+        >
+          <EventLog events={events} streamStatus={streamStatus} />
+        </section>
+
+        <details>
+          <summary style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }}>
+            Raw snapshot JSON
+          </summary>
+          <pre
+            className="mono"
             style={{
-              background: 'var(--surface)',
+              marginTop: 8,
+              padding: 12,
+              background: 'var(--surface-raised)',
               border: '1px solid var(--border)',
               borderRadius: 6,
-              padding: 16,
+              overflowX: 'auto',
+              fontSize: 12,
             }}
           >
-            <h2 style={sectionTitle}>Nodes</h2>
-            {snapshot ? <NodeList nodes={snapshot.nodes} /> : <Loading />}
-          </section>
-
-          <section
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              padding: 16,
-            }}
-          >
-            <EventLog events={events} streamStatus={streamStatus} />
-          </section>
-
-          <details>
-            <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>
-              Raw snapshot JSON
-            </summary>
-            <pre
-              className="mono"
-              style={{
-                marginTop: 10,
-                padding: 12,
-                background: 'var(--surface-raised)',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                overflowX: 'auto',
-                fontSize: 12,
-              }}
-            >
-              {snapshot ? JSON.stringify(snapshot, null, 2) : 'loading…'}
-            </pre>
-          </details>
-        </main>
-      </div>
+            {snapshot ? JSON.stringify(snapshot, null, 2) : 'loading…'}
+          </pre>
+        </details>
+      </main>
     </div>
   )
 }
@@ -257,14 +212,128 @@ const sectionTitle: CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   letterSpacing: 0.1,
-  margin: '0 0 14px',
+  margin: '0 0 12px',
 }
 
-const subsectionTitle: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
+const headerButtonStyle: CSSProperties = {
+  background: 'var(--surface-raised)',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
   color: 'var(--text-muted)',
-  margin: '0 0 12px',
+  fontSize: 12,
+  padding: '5px 10px',
+  cursor: 'pointer',
+}
+
+/**
+ * Tab buttons for the Topology/Nodes switcher that replaced stacking the
+ * node table below the diagram: an underline-style tab (active = accent
+ * underline, matching the header's own accent-colored top border) rather
+ * than a boxed/pill tab, so switching views doesn't also redraw a card
+ * border around whichever is active — one less visual change competing
+ * with the content swap itself.
+ */
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: 'none',
+        border: 'none',
+        borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+        color: active ? 'var(--text)' : 'var(--text-muted)',
+        fontWeight: active ? 600 : 500,
+        fontSize: 14,
+        padding: '6px 2px',
+        marginBottom: -1,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * The always-visible sidebar this replaced (a 260px-wide column showing
+ * every source's health, all the time, whether or not anything was wrong)
+ * cost real width on every screen for information that is almost always
+ * "reachable, nothing to see" — see Memory on the whitespace-reduction
+ * pass this came out of. The collapsed state is just a status dot plus a
+ * word; the detail (SourceHealthPanel: which source, when it last
+ * succeeded, what the last error was) is one click away in a popover,
+ * open only when there's a reason to check it.
+ */
+function SourcesButton({
+  health,
+  marginLeft,
+}: {
+  health: Snapshot['health'] | undefined
+  marginLeft: number | 'auto'
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const summary = summarizeSourceHealth(health)
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', marginLeft }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="mono"
+        style={{ ...headerButtonStyle, display: 'flex', alignItems: 'center', gap: 7 }}
+        aria-expanded={open}
+        title={summary.label}
+      >
+        <StatusDot color={summary.color} />
+        Sources
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 'calc(100% + 6px)',
+            width: 280,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: 14,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+            zIndex: 10,
+          }}
+        >
+          {health ? <SourceHealthPanel health={health} /> : <Loading />}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function Loading() {

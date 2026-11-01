@@ -1,4 +1,4 @@
-import type { NodeColor } from '../api/types'
+import type { NodeColor, SourceHealth, SourceName } from '../api/types'
 import type { Theme } from '../theme'
 
 type StatusKey = 'ok' | 'drift' | 'down' | 'workflow' | 'neutral'
@@ -113,6 +113,33 @@ export function runStatusLabel(status: string): string {
     default:
       return status || 'Unknown'
   }
+}
+
+const SOURCE_ORDER: SourceName[] = ['containerlab', 'sakutei', 'plugin']
+
+/**
+ * Collapses every data source's health into the one status dot shown on
+ * the header's always-visible Sources button (see App.tsx's
+ * SourcesButton) — the per-source detail (which one, when it last
+ * succeeded, what the last error was) only needs to exist once the
+ * popover showing SourceHealthPanel is actually open. Any
+ * configured-but-unreachable source wins (down is the one state worth
+ * noticing without opening anything); otherwise ok if at least one source
+ * is configured and reachable; otherwise neutral (nothing configured yet,
+ * or the snapshot hasn't loaded).
+ */
+export function summarizeSourceHealth(
+  health: Record<SourceName, SourceHealth> | undefined,
+): { color: string; label: string } {
+  if (!health) return { color: 'var(--text-faint)', label: 'sources' }
+  const values = SOURCE_ORDER.map((n) => health[n]).filter((h): h is SourceHealth => Boolean(h))
+  if (values.some((h) => h.configured && !h.ok)) {
+    return { color: 'var(--status-down)', label: 'sources: unreachable' }
+  }
+  if (values.some((h) => h.configured && h.ok)) {
+    return { color: 'var(--status-ok)', label: 'sources: ok' }
+  }
+  return { color: 'var(--text-faint)', label: 'sources' }
 }
 
 export function statusLabel(color: NodeColor): string {

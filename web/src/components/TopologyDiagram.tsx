@@ -1,6 +1,6 @@
 import cytoscape from 'cytoscape'
 import dagre from 'cytoscape-dagre'
-import type { Core, ElementDefinition, NodeSingular, StylesheetJsonBlock } from 'cytoscape'
+import type { Core, EdgeSingular, ElementDefinition, NodeSingular, StylesheetJsonBlock } from 'cytoscape'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SnapshotLink, SnapshotNode } from '../api/types'
 import type { Theme } from '../theme'
@@ -36,6 +36,46 @@ const THEME_HEX: Record<
     textFaint: '#55616b',
     accent: '#0d7d78',
   },
+}
+
+// A sans-serif, UI-matching font for on-canvas text (node/edge labels):
+// Cytoscape renders to its own canvas and can't read the page's
+// var(--font-ui), so this is a literal twin of it (same reasoning as
+// THEME_HEX). Chosen over the app's monospace font specifically for the
+// diagram's labels -- at the small sizes a busy topology forces labels
+// down to, a UI sans-serif reads more legibly than a fixed-width font
+// (which trades legibility for alignment, useful for the detail panels'
+// "mono" identifiers elsewhere in the app, not for prose-like device
+// names here).
+const FONT_UI = '-apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif'
+
+// A categorical palette for containerlab `group:` frames -- distinct from
+// both the five-color status vocabulary (ok/drift/down/workflow/neutral)
+// and the one brand accent, so a group's color is never mistaken for a
+// status signal. A group's color is assigned by buildGroupColors below,
+// by each group name's position in alphabetical order, not by a hash of
+// the name: a short-string hash mod a small palette collides often in
+// practice (an earlier version of this used hashString, which put 3 of 4
+// groups in a real topology on the exact same color -- defeating the
+// point of a categorical palette), while alphabetical order guarantees
+// every group gets a *distinct* color as long as there are no more groups
+// than palette entries, and is still fully deterministic (same group set
+// -> same assignment, every render/reload) without needing any
+// content-addressed hash to get there. Light-theme entries are darkened
+// versions of the same hues (same reasoning as the status/STATUS_HEX
+// palettes), not a plain invert, so each still clears a readable contrast
+// ratio against a near-white surface.
+const GROUP_PALETTE: Record<Theme, string[]> = {
+  dark: ['#a78bfa', '#f472b6', '#67c9a3', '#60a5fa', '#e879f9', '#c9976b'],
+  light: ['#6d43d1', '#c2255c', '#0f7a5c', '#1d4ed8', '#a21caf', '#8a5a2b'],
+}
+
+function buildGroupColors(theme: Theme, groupNames: Iterable<string>): Map<string, string> {
+  const palette = GROUP_PALETTE[theme]
+  const sorted = [...groupNames].sort()
+  const map = new Map<string, string>()
+  sorted.forEach((g, i) => map.set(g, palette[i % palette.length]))
+  return map
 }
 
 // A small chip/device glyph, shown as a corner badge on nodes that carry a
@@ -123,6 +163,17 @@ function nodeElement(n: SnapshotNode, theme: Theme): ElementDefinition {
       group: n.group ?? '',
       role,
       compact: COMPACT_ROLES.has(role),
+      // The backend's own tier number (internal/aggregate/layout.go),
+      // not re-derived from the node's rendered/layout position --
+      // clusterRanksByGroup below buckets nodes into "the same rank" by
+      // this value rather than by rounding position().y, because dagre's
+      // 'UL' alignment does not give every node in a rank the exact same
+      // rendered y once node heights differ (e.g. a compact firewall
+      // glyph vs. a normal-height switch box both on tier 1): rounding
+      // the rendered y split what was conceptually one rank into two,
+      // silently defeating both of clusterRanksByGroup's passes for any
+      // rank mixing compact and non-compact nodes.
+      tier: n.tier,
     },
   }
 }
@@ -212,10 +263,21 @@ function edgeElementFromGroup(
       source,
       target,
       tierDelta: Math.abs(tierA - tierB),
-      label: isLag ? lagLabel(group.length) : linkLabel(first),
+      // Only a LAG bundle's label is drawn on the canvas by default (the
+      // "LAG ×N" pill, which already carries its own background and is a
+      // single label per bundle, not one per raw link). A plain single
+      // link's interface pair is still computed (ifacePair) but left out
+      // of the on-canvas label -- with dozens of links radiating from a
+      // hub node, labeling every one of them is what caused the diagram's
+      // text to pile up illegibly; that detail is available on click
+      // instead (see LinkDetail), the same click-for-detail pattern nodes
+      // already use.
+      label: isLag ? lagLabel(group.length) : '',
       linkType: first.type || 'veth',
       isLag,
       lagCount: group.length,
+      ifacePair: linkLabel(first),
+      members: group.map(linkLabel),
     },
   }
 }
@@ -229,18 +291,20 @@ function buildStyle(theme: Theme): StylesheetJsonBlock[] {
         shape: 'data(shape)' as unknown as cytoscape.Css.NodeShape,
         width: 'label',
         height: 34,
-        padding: '10px',
+        padding: '12px',
         'background-color': hex.surfaceRaised,
         'border-width': 3,
         'border-color': 'data(borderColor)',
         label: 'data(label)',
         color: hex.text,
-        'font-family': 'ui-monospace, Consolas, monospace',
-        'font-size': 12,
+        'font-family': FONT_UI,
+        'font-size': 13,
+        'font-weight': 600,
         'text-valign': 'center',
         'text-halign': 'center',
         'text-wrap': 'wrap',
-        'text-max-width': '160px',
+        'text-max-width': '170px',
+        'line-height': 1.3,
       },
     },
     {
@@ -300,16 +364,16 @@ function buildStyle(theme: Theme): StylesheetJsonBlock[] {
         // harder to trace back to its source than straight lines do, even though
         // straight lines cross more often -- the crossings themselves are easier
         // to read through than a bend is.
-        width: 1.5,
+        width: 1.75,
         'line-color': hex.linkColor,
         'curve-style': 'straight',
         'target-arrow-shape': 'none',
         label: 'data(label)',
-        'font-size': 9,
-        color: hex.textFaint,
-        'font-family': 'ui-monospace, Consolas, monospace',
+        'font-size': 10,
+        color: hex.text,
+        'font-family': FONT_UI,
         'text-background-color': hex.bg,
-        'text-background-opacity': 0.85,
+        'text-background-opacity': 0.9,
         'text-background-padding': '2px',
       },
     },
@@ -354,16 +418,34 @@ interface Props {
   theme: Theme
 }
 
+/** The side panel's view of a clicked link/LAG-bundle -- read straight off
+ * the tapped edge element's own data (set by edgeElementFromGroup), not
+ * re-derived from the `links` prop. */
+interface SelectedLink {
+  source: string
+  target: string
+  linkType: string
+  isLag: boolean
+  members: string[]
+}
+
 /** A group-frame box's current on-screen position, in the same (rendered,
  * container-relative) pixel space the overlay <div> draws in. */
 interface GroupBox {
   id: string
   label: string
+  color: string
   x: number
   y: number
   w: number
   h: number
 }
+
+// How far a group frame extends beyond its outermost member's own
+// bounding box -- shared between computeGroupBoxes (which draws the
+// frame) and clusterRanksByGroup (which, during layout, needs to know
+// this same distance to keep two different groups' frames from touching).
+const GROUP_FRAME_PAD = 18
 
 // computeGroupBoxes derives each group's bounding frame from its members'
 // *current* rendered positions -- recomputed live (see the 'render'
@@ -372,8 +454,8 @@ interface GroupBox {
 // own layout pass. A group with fewer than two currently-present members
 // draws no frame: a box around a single node would just duplicate that
 // node's own border.
-function computeGroupBoxes(cy: Core, groups: Map<string, string[]>): GroupBox[] {
-  const PAD = 16
+function computeGroupBoxes(cy: Core, groups: Map<string, string[]>, theme: Theme): GroupBox[] {
+  const colors = buildGroupColors(theme, groups.keys())
   const boxes: GroupBox[] = []
   for (const [group, memberIds] of groups) {
     let col = cy.collection()
@@ -386,13 +468,153 @@ function computeGroupBoxes(cy: Core, groups: Map<string, string[]>): GroupBox[] 
     boxes.push({
       id: group,
       label: group,
-      x: bb.x1 - PAD,
-      y: bb.y1 - PAD,
-      w: bb.w + PAD * 2,
-      h: bb.h + PAD * 2,
+      color: colors.get(group) ?? THEME_HEX[theme].text,
+      x: bb.x1 - GROUP_FRAME_PAD,
+      y: bb.y1 - GROUP_FRAME_PAD,
+      w: bb.w + GROUP_FRAME_PAD * 2,
+      h: bb.h + GROUP_FRAME_PAD * 2,
     })
   }
   return boxes
+}
+
+// Minimum clear space left between two *different* groups' frames when
+// their clusters land next to each other on the same rank (see the second
+// pass inside clusterRanksByGroup) -- independent of GROUP_FRAME_PAD
+// itself, so two frames are never left merely touching edge-to-edge.
+const GROUP_FRAME_MIN_GAP = 20
+
+// After a fresh dagre layout, reorder each rank's *already laid-out* x
+// slots (not their values -- just which node sits in which slot) so that
+// members of the same containerlab `group:` which landed on the same tier
+// sit next to each other, instead of wherever dagre's crossing-minimization
+// heuristic (which has no notion of `group`) happened to interleave them.
+// Reusing dagre's own x values for the slots, width-aware via
+// nodeDimensionsIncludeLabels, means the *reordering* pass can never
+// introduce a new node/node overlap -- it only permutes which node
+// occupies which already non-overlapping horizontal position.
+//
+// That reordering alone is not quite enough, though: dagre's nodeSep only
+// guarantees clearance between adjacent *node* boxes, not between the
+// dashed *frames* computeGroupBoxes draws GROUP_FRAME_PAD beyond each
+// group's outermost member -- two different groups' clusters landing
+// right next to each other can still leave their frames overlapping even
+// though the nodes themselves don't (this is exactly what a real topology
+// surfaced: an "edge" cluster and a "leaf" cluster sharing a rank, with
+// nodeSep's gap between them smaller than their two frames' combined pad).
+// A second pass below widens the gap between any two adjacent clusters
+// where at least one is a real (2+ member) framed group, by shifting that
+// cluster and everything to its right -- this only ever pushes things
+// further apart, so it can't introduce a new overlap either.
+function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
+  if (groups.size === 0) return
+  const memberOfGroup = new Map<string, string>()
+  for (const [g, members] of groups) {
+    for (const m of members) memberOfGroup.set(m, g)
+  }
+
+  // Bucketed by the backend's own tier number (see nodeElement's doc
+  // comment on why this isn't derived from position().y): two nodes
+  // dagre placed on the same rank can still end up at slightly different
+  // rendered y once their heights differ (e.g. a compact firewall glyph
+  // next to a normal-height switch box), which silently split one real
+  // rank into two separately-keyed buckets when this rounded y instead.
+  const byRank = new Map<number, NodeSingular[]>()
+  cy.nodes().forEach((n) => {
+    const tier = n.data('tier') as number
+    const arr = byRank.get(tier)
+    if (arr) arr.push(n)
+    else byRank.set(tier, [n])
+  })
+
+  // GROUP_FRAME_PAD/GROUP_FRAME_MIN_GAP are rendered-pixel quantities --
+  // computeGroupBoxes applies them to renderedBoundingBox() output, i.e.
+  // *after* zoom. Node .position().x below, by contrast, is model space
+  // (before zoom). A model-space gap and a rendered-pixel pad are not the
+  // same unit: at this diagram's typical zoomed-out scale (e.g. 0.46x for
+  // a modest multi-rank fabric), a 56-rendered-pixel requirement is only
+  // ~26 model units, not 56 -- comparing the two directly (as an earlier
+  // version of this did) silently passed gaps that were actually far too
+  // small once rendered, which is exactly the overlap a real topology
+  // surfaced. Converting the target into model units via the current zoom
+  // (captured once, before this pass's own shifts can change it) fixes
+  // that; the shifts this pass makes are modest enough relative to the
+  // whole diagram that the small zoom change from the layout's later
+  // re-fit doesn't meaningfully erode the margin.
+  const zoom = cy.zoom()
+
+  cy.batch(() => {
+    for (const rankNodes of byRank.values()) {
+      if (rankNodes.length < 2) continue
+      const sorted = [...rankNodes].sort((a, b) => a.position().x - b.position().x)
+      const slotXs = sorted.map((n) => n.position().x)
+
+      // A group only clusters within a rank where 2+ of its members
+      // actually landed on that rank -- a lone member sits wherever it
+      // already was, same as an ungrouped node.
+      const countInRank = new Map<string, number>()
+      for (const n of sorted) {
+        const g = memberOfGroup.get(n.id())
+        if (!g) continue
+        countInRank.set(g, (countInRank.get(g) ?? 0) + 1)
+      }
+      const clusterKeyOf = (n: NodeSingular): string => {
+        const g = memberOfGroup.get(n.id())
+        return g && (countInRank.get(g) ?? 0) >= 2 ? g : `__single:${n.id()}`
+      }
+
+      // Clusters are collected in the order their first (leftmost, since
+      // `sorted` is x-ascending) member is encountered -- so clusterOrder
+      // already reflects "order clusters by their leftmost original x",
+      // without needing a separate sort/anchor computation.
+      const clusters = new Map<string, NodeSingular[]>()
+      const clusterOrder: string[] = []
+      for (const n of sorted) {
+        const k = clusterKeyOf(n)
+        const arr = clusters.get(k)
+        if (arr) {
+          arr.push(n)
+        } else {
+          clusters.set(k, [n])
+          clusterOrder.push(k)
+        }
+      }
+
+      const newOrder: NodeSingular[] = []
+      for (const k of clusterOrder) newOrder.push(...(clusters.get(k) ?? []))
+      newOrder.forEach((n, i) => n.position('x', slotXs[i]))
+
+      // Second pass: ensure adequate clearance between adjacent clusters'
+      // *frames*, not just their nodes (see the doc comment above). Walk
+      // clusters left-to-right, accumulating a rightward shift once a gap
+      // falls short and carrying it forward onto every later cluster in
+      // the same rank, so relative order and every already-sufficient gap
+      // elsewhere in the rank are left untouched.
+      let shift = 0
+      const isFramed = (key: string) => !key.startsWith('__single:')
+      for (let ci = 0; ci < clusterOrder.length; ci++) {
+        const members = clusters.get(clusterOrder[ci]) ?? []
+        if (shift > 0) {
+          for (const n of members) n.position('x', n.position().x + shift)
+        }
+        if (ci + 1 >= clusterOrder.length) continue
+        const thisKey = clusterOrder[ci]
+        const nextKey = clusterOrder[ci + 1]
+        if (!isFramed(thisKey) && !isFramed(nextKey)) continue
+        const nextMembers = clusters.get(nextKey) ?? []
+        const padNeeded = (isFramed(thisKey) ? GROUP_FRAME_PAD : 0) + (isFramed(nextKey) ? GROUP_FRAME_PAD : 0)
+        const lastOfThis = members[members.length - 1]
+        const firstOfNext = nextMembers[0]
+        const lastRight = lastOfThis.position().x + lastOfThis.outerWidth() / 2
+        const nextLeft = firstOfNext.position().x - firstOfNext.outerWidth() / 2
+        const currentGap = nextLeft - lastRight
+        const needed = (padNeeded + GROUP_FRAME_MIN_GAP) / zoom
+        if (currentGap < needed) {
+          shift += needed - currentGap
+        }
+      }
+    }
+  })
 }
 
 /**
@@ -420,6 +642,7 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const cyRef = useRef<Core | null>(null)
   const [selected, setSelected] = useState<SnapshotNode | null>(null)
+  const [selectedLink, setSelectedLink] = useState<SelectedLink | null>(null)
   const [filter, setFilter] = useState('')
   const [groupBoxes, setGroupBoxes] = useState<GroupBox[]>([])
 
@@ -452,6 +675,14 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
   useEffect(() => {
     nodeGroupsRef.current = nodeGroups
   }, [nodeGroups])
+  // Mirrored the same way as nodeGroupsRef, for the same reason: the
+  // persistent 'render' listener bound once at mount must read the
+  // *current* theme (to color group frames correctly), not whatever theme
+  // was active the instant the listener was created.
+  const themeRef = useRef(theme)
+  useEffect(() => {
+    themeRef.current = theme
+  }, [theme])
 
   // Link types present in this snapshot that LINK_TYPE_VISUALS actually
   // draws distinctly (i.e. excluding "veth"/unrecognized, which render as
@@ -490,7 +721,7 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
     // without this effect needing to know when any of those happen --
     // 'render' fires on all of them (see computeGroupBoxes's doc comment).
     const onRender = () => {
-      setGroupBoxes(computeGroupBoxes(cy, nodeGroupsRef.current))
+      setGroupBoxes(computeGroupBoxes(cy, nodeGroupsRef.current, themeRef.current))
     }
     cy.on('render', onRender)
     return () => {
@@ -511,13 +742,29 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
   useEffect(() => {
     const cy = cyRef.current
     if (!cy) return
-    const handler = (evt: cytoscape.EventObject) => {
+    const nodeHandler = (evt: cytoscape.EventObject) => {
       const n = evt.target as NodeSingular
       const found = (nodes ?? []).find((x) => x.name === n.id())
       setSelected(found ?? null)
+      setSelectedLink(null)
     }
-    const clearHandler = () => setSelected(null)
-    cy.on('tap', 'node', handler)
+    const edgeHandler = (evt: cytoscape.EventObject) => {
+      const e = evt.target as EdgeSingular
+      setSelected(null)
+      setSelectedLink({
+        source: e.data('source') as string,
+        target: e.data('target') as string,
+        linkType: (e.data('linkType') as string) || 'veth',
+        isLag: Boolean(e.data('isLag')),
+        members: (e.data('members') as string[] | undefined) ?? [],
+      })
+    }
+    const clearHandler = () => {
+      setSelected(null)
+      setSelectedLink(null)
+    }
+    cy.on('tap', 'node', nodeHandler)
+    cy.on('tap', 'edge', edgeHandler)
     cy.on('tap', (evt) => {
       if (evt.target === cy) clearHandler()
     })
@@ -586,6 +833,7 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
             role,
             compact: COMPACT_ROLES.has(role),
             shape: ROLE_SHAPE[role],
+            tier: n.tier,
           })
         } else {
           const el = nodeElement(n, theme)
@@ -611,10 +859,12 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
           const first = group[0]
           const isLag = group.length > 1
           existing.data({
-            label: isLag ? lagLabel(group.length) : linkLabel(first),
+            label: isLag ? lagLabel(group.length) : '',
             linkType: first.type || 'veth',
             isLag,
             lagCount: group.length,
+            ifacePair: linkLabel(first),
+            members: group.map(linkLabel),
           })
         }
       }
@@ -627,19 +877,31 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
         fit: true,
         padding: 40,
         rankDir: 'TB',
-        nodeSep: 36,
-        rankSep: 70,
+        nodeSep: 56,
+        rankSep: 100,
+        edgeSep: 24,
         align: 'UL',
         nodeDimensionsIncludeLabels: true,
         minLen: (edge: cytoscape.EdgeSingular) => (edge.data('tierDelta') as number) || 0,
       } as cytoscape.LayoutOptions).run()
+      // Dagre's own crossing-minimization has no notion of containerlab
+      // `group:` -- pull each rank's group members back together
+      // (see clusterRanksByGroup's doc comment) so the frame drawn around
+      // a group never has to stretch to cover an unrelated node dagre
+      // happened to interleave in between.
+      clusterRanksByGroup(cy, nodeGroups)
+      // clusterRanksByGroup's second pass can push nodes wider than the
+      // layout's own `fit: true` already accounted for (it ran before
+      // that pass existed) -- re-fit with the same padding so nothing
+      // ends up partly outside the visible canvas.
+      cy.fit(undefined, 40)
     }
     // Group frames are keyed off the same elements this effect just
     // settled (new positions after a layout re-run, or just-updated
     // group membership even without one) -- recompute them here rather
     // than waiting for the next 'render' event, so a structural change
     // never shows a stale frame even for a single tick.
-    setGroupBoxes(computeGroupBoxes(cy, nodeGroups))
+    setGroupBoxes(computeGroupBoxes(cy, nodeGroups, theme))
   }, [nodes, links, theme, nodeGroups])
 
   // Dim nodes/edges that don't match the filter text, instead of removing
@@ -666,27 +928,31 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <input
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="filter nodes…"
-        className="mono"
-        style={{
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          color: 'var(--text)',
-          fontSize: 12,
-          padding: '6px 10px',
-          width: 220,
-        }}
-      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="filter nodes…"
+          className="mono"
+          style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            color: 'var(--text)',
+            fontSize: 12,
+            padding: '6px 10px',
+            width: 220,
+          }}
+        />
+        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>click a node or link for details</span>
+      </div>
       <div style={{ display: 'flex', gap: 16 }}>
         <div
           style={{
             flex: 1,
-            height: 420,
+            height: 440,
             position: 'relative',
+            overflow: 'hidden',
             background: 'var(--bg)',
             border: '1px solid var(--border)',
             borderRadius: 6,
@@ -703,18 +969,27 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
                   top: b.y,
                   width: b.w,
                   height: b.h,
-                  border: '1px dashed var(--border)',
+                  border: `1.5px dashed ${b.color}`,
                   borderRadius: 8,
                 }}
               >
+                {/* Label sits *inside* the frame's own top-left corner
+                    (not below/outside it) so it can never be clipped by
+                    the diagram's overflow:hidden, and a group near the
+                    canvas edge never produces a line that visually
+                    "leaks" past the diagram's own border. */}
                 <span
-                  className="mono"
                   style={{
                     position: 'absolute',
                     left: 6,
-                    bottom: -16,
-                    fontSize: 10,
-                    color: 'var(--text-faint)',
+                    top: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-ui)',
+                    color: b.color,
+                    background: 'var(--bg)',
+                    padding: '1px 5px',
+                    borderRadius: 4,
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -734,7 +1009,7 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
           }}
         >
           <Legend roles={roles} theme={theme} linkTypes={presentLinkTypes} hasLag={hasLag} />
-          {selected ? <NodeDetail node={selected} /> : null}
+          {selectedLink ? <LinkDetail link={selectedLink} /> : selected ? <NodeDetail node={selected} /> : null}
         </div>
       </div>
     </div>
@@ -946,6 +1221,31 @@ function NodeDetail({ node }: { node: SnapshotNode }) {
             .join(': ')}
         />
       )}
+    </div>
+  )
+}
+
+function LinkDetail({ link }: { link: SelectedLink }) {
+  return (
+    <div
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        padding: 12,
+        fontSize: 12,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
+      <div className="mono" style={{ fontWeight: 600 }}>
+        {link.source} ↔ {link.target}
+      </div>
+      <Row label="type" value={link.linkType} />
+      {link.isLag && <Row label="bundle" value={`${link.members.length} links`} />}
+      {link.members.map((m, i) => (
+        <Row key={i} label={link.isLag ? `link ${i + 1}` : 'interfaces'} value={m} />
+      ))}
     </div>
   )
 }

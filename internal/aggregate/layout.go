@@ -38,6 +38,20 @@ import (
 // Link endpoints naming a node not present in nodes are ignored (that
 // node's existence is not known to this view, so it cannot sensibly
 // anchor or extend a tier). A self-link (a == b) is likewise ignored.
+//
+// Degree, for both the max-degree hub search and the per-node tier a node
+// ends up at, is counted in *distinct neighbors*, not raw link count: two
+// (or more) parallel links between the same pair of nodes (a
+// link-aggregation bundle -- see TopologyDiagram.tsx's edgeGroupKey on the
+// frontend, which draws exactly this as one merged "LAG ×N" edge) reach
+// exactly as many other devices as a single link would. Counting raw link
+// count here would let a node's cabling redundancy alone -- not how many
+// distinct other devices it actually reaches -- decide whether it ties for
+// hub, which previously split a symmetric two-hub design (e.g. two spines,
+// one of which happens to have one bundled link somewhere the other
+// doesn't) into only one of them becoming tier 0: the other was then BFS'd
+// in from its leaves, landing it on the same tier as those leaves'
+// children instead of beside its twin.
 func computeTiers(nodes []containerlab.Node, links []containerlab.Link) map[string]int {
 	names := make([]string, 0, len(nodes))
 	known := make(map[string]bool, len(nodes))
@@ -49,17 +63,23 @@ func computeTiers(nodes []containerlab.Node, links []containerlab.Link) map[stri
 		names = append(names, n.Name)
 	}
 
-	adj := make(map[string][]string, len(names))
+	neighbors := make(map[string]map[string]bool, len(names))
 	for _, name := range names {
-		adj[name] = nil // every known node gets an entry, even isolated ones
+		neighbors[name] = map[string]bool{} // every known node gets an entry, even isolated ones
 	}
 	for _, l := range links {
 		a, b := l.A.Node, l.B.Node
 		if !known[a] || !known[b] || a == b {
 			continue
 		}
-		adj[a] = append(adj[a], b)
-		adj[b] = append(adj[b], a)
+		neighbors[a][b] = true
+		neighbors[b][a] = true
+	}
+	adj := make(map[string][]string, len(names))
+	for name, set := range neighbors {
+		for nb := range set {
+			adj[name] = append(adj[name], nb)
+		}
 	}
 
 	tiers := make(map[string]int, len(names))

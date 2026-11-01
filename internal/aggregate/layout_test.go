@@ -72,6 +72,35 @@ func TestComputeTiers_SpineLeafFirewallCompute(t *testing.T) {
 	}
 }
 
+func TestComputeTiers_ParallelLinksDoNotBreakHubTie(t *testing.T) {
+	// Same shape as TestComputeTiers_SpineLeafFirewallCompute, except
+	// spine1 has a *second*, parallel link to fw1 (a link-aggregation
+	// bundle -- two links between the same node pair). Raw link count would
+	// give spine1 degree 5 and spine2 degree 4, breaking the tie and
+	// leaving spine2 to be BFS'd in from its leaves -- landing it on tier 2,
+	// the same tier as c1/c2, instead of beside spine1 on tier 0. Counting
+	// distinct neighbors (both spines reach the same 4 other devices either
+	// way) keeps them tied.
+	nodes := nodeNames("spine1", "spine2", "leaf1", "leaf2", "fw1", "fw2", "c1", "c2")
+	links := []containerlab.Link{
+		link("spine1", "leaf1"), link("spine1", "leaf2"), link("spine1", "fw1"), link("spine1", "fw2"),
+		link("spine1", "fw1"), // parallel/bundled link, same pair as above
+		link("spine2", "leaf1"), link("spine2", "leaf2"), link("spine2", "fw1"), link("spine2", "fw2"),
+		link("leaf1", "c1"),
+		link("leaf2", "c2"),
+	}
+	tiers := computeTiers(nodes, links)
+
+	want := map[string]int{
+		"spine1": 0, "spine2": 0,
+		"leaf1": 1, "leaf2": 1, "fw1": 1, "fw2": 1,
+		"c1": 2, "c2": 2,
+	}
+	if !reflect.DeepEqual(tiers, want) {
+		t.Errorf("tiers = %+v, want %+v", tiers, want)
+	}
+}
+
 func TestComputeTiers_SingleIsolatedNode(t *testing.T) {
 	nodes := nodeNames("solo")
 	tiers := computeTiers(nodes, nil)

@@ -153,8 +153,14 @@ topology:
     - endpoints: ["spine2:eth2", "leaf2:eth2"]
     - endpoints: ["spine2:eth3", "leaf3:eth2"]
     - endpoints: ["spine2:eth4", "leaf4:eth2"]
-    # spine <-> edge firewall, full mesh
+    # spine <-> edge firewall, full mesh. spine1<->edge-fw1 is bonded as a
+    # 2-link bundle (a real, deployable containerlab shape: two independent
+    # veth links between the same node pair) to exercise the diagram's
+    # link-aggregation merging (see TopologyDiagram.tsx's edgeGroupKey),
+    # same as a physical diagram would draw one line with a link-aggregation
+    # symbol instead of two crossing parallel lines.
     - endpoints: ["spine1:eth5", "edge-fw1:eth1"]
+    - endpoints: ["spine1:eth7", "edge-fw1:eth3"]
     - endpoints: ["spine1:eth6", "edge-fw2:eth1"]
     - endpoints: ["spine2:eth5", "edge-fw1:eth2"]
     - endpoints: ["spine2:eth6", "edge-fw2:eth2"]

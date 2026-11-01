@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/aggregate"
 )
 
 func sakuteiEvent(resource, message string, at time.Time) aggregate.Event {
@@ -367,7 +367,7 @@ func TestStore_LastPluginEventID(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	// Must survive a restart too, since it is what cmd/sakutei-view passes
+	// Must survive a restart too, since it is what cmd/clab-view passes
 	// as the plugin's resume id on the very next process start.
 	s2, err := Open(Config{Path: path})
 	if err != nil {

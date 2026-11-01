@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/source/sakutei"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/sakutei"
 )
 
 // EventSource identifies which data source produced an Event.

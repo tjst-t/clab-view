@@ -2,7 +2,7 @@
 // (`--read-listen`): GET /status, /plan, /graph, and the /events
 // Server-Sent-Events stream. The JSON shapes here follow Sakutei v2's
 // docs/read-api.md, docs/status-json.md and docs/plan-json.md (schema_version
-// 1). Fields sakutei-view does not use are intentionally omitted — JSON
+// 1). Fields clab-view does not use are intentionally omitted — JSON
 // decoding ignores fields it doesn't recognize, and the Sakutei docs
 // explicitly say readers should do the same.
 package sakutei
@@ -349,7 +349,7 @@ type GraphResponse struct {
 // Event mirrors pkg/core.Event's JSON shape (see Sakutei's
 // docs/architecture and §22.3). Kind/Severity/State/Class are free-form
 // strings on the wire; Sakutei defines a fixed set of values but
-// sakutei-view treats unrecognized ones generically.
+// clab-view treats unrecognized ones generically.
 type Event struct {
 	Time             string            `json:"time"`
 	Kind             string            `json:"kind"`

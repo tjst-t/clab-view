@@ -1,5 +1,5 @@
 // Package httpclient builds *http.Client values for the outbound connections
-// sakutei-view makes (to Sakutei's --read-listen API, to a device plugin, and
+// clab-view makes (to Sakutei's --read-listen API, to a device plugin, and
 // to containerlab/clab-api-server). Every such connection is configured the
 // same way:
 //

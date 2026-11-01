@@ -2,7 +2,7 @@
 // topology and node state, sourced either directly from clab-api-server's
 // HTTP API or indirectly through a device plugin's GET /plugin/topology
 // passthrough (docs/plugin-contract.md). Both are exposed behind the same
-// Source interface so the rest of sakutei-view does not need to know which
+// Source interface so the rest of clab-view does not need to know which
 // one is configured.
 package containerlab
 
@@ -16,7 +16,7 @@ import "context"
 // calls it, and what a device plugin's /plugin/status resources[].node and
 // Sakutei's local_id both identify it by) -- never the underlying Docker
 // container's name, which containerlab derives by prefixing it with
-// "clab-<lab-name>-". sakutei-view matches overlays onto nodes by this
+// "clab-<lab-name>-". clab-view matches overlays onto nodes by this
 // field, so getting it right (not the container name) is what makes the
 // node-matching/coloring work at all. See ContainerName for the raw
 // container name, kept only for display/debugging.

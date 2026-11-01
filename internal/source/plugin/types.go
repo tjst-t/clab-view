@@ -69,7 +69,7 @@ type SakuteiBinding struct {
 
 // SakuteiSource is one element of StatusResponse.SakuteiSources (added in
 // contract v0.4): where a Sakutei resource's desired state is declared, so
-// sakutei-view can show not just what Sakutei observed but where that came
+// clab-view can show not just what Sakutei observed but where that came
 // from and why.
 type SakuteiSource struct {
 	// ResourceID is the Sakutei resource id this entry is about, in the
@@ -84,12 +84,12 @@ type SakuteiSource struct {
 	// Key locates the specific item within File that declares this
 	// resource, e.g. "resources[name=db1]" to address one entry of an
 	// array by a stable field rather than by numeric index (which shifts as
-	// the file is edited). Free-form; sakutei-view does not parse it, only
+	// the file is edited). Free-form; clab-view does not parse it, only
 	// displays it.
 	Key string `json:"key"`
 	// Why is the human-readable rationale carried alongside the
 	// declaration, or nil if the declaration has none. A nil Why should be
-	// shown as "no rationale recorded" (sakutei-view: 理由の記載なし), not
+	// shown as "no rationale recorded" (clab-view: 理由の記載なし), not
 	// hidden -- the absence itself is worth surfacing, not papering over.
 	Why *string `json:"why"`
 	// Derived is true when this resource's state is not written directly in
@@ -134,7 +134,7 @@ type StatusResponse struct {
 	// deployment cares about, which declaration file (and which item within
 	// it) their desired state comes from, and why. Added in contract v0.4;
 	// omitted entirely by a v0.1/v0.2/v0.3 plugin, which is indistinguishable
-	// from an empty list -- sakutei-view simply has no source-file
+	// from an empty list -- clab-view simply has no source-file
 	// information to show for any resource in that case.
 	SakuteiSources []SakuteiSource `json:"sakutei_sources,omitempty"`
 	// PolicySources optionally says, for some or all of the boundary

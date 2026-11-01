@@ -1,4 +1,4 @@
-// Package webui embeds the built frontend (web/) into the sakutei-view
+// Package webui embeds the built frontend (web/) into the clab-view
 // binary, so a deployment is a single executable with no Node.js involved.
 //
 // dist/ is NOT generated at build time — go:embed can only reference files
@@ -6,7 +6,7 @@
 // is produced ahead of time by scripts/build-frontend.sh (which runs
 // `npm run build` in web/ and copies web/dist's output here) and committed
 // to git. Anyone changing web/src must re-run that script and commit the
-// refreshed dist/ alongside their change; `go build ./cmd/sakutei-view`
+// refreshed dist/ alongside their change; `go build ./cmd/clab-view`
 // itself never invokes npm and does not need Node.js installed.
 //
 // Because dist/ is committed separately from the web/ source it was built

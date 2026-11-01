@@ -1,4 +1,4 @@
-// Command sakutei-view runs the sakutei-view server: it reads containerlab,
+// Command clab-view runs the clab-view server: it reads containerlab,
 // Sakutei, and (optionally) a device plugin over HTTP, and serves a single
 // read-only web page summarizing all three. See README.md.
 //
@@ -19,14 +19,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
-	"github.com/tjst-t/sakutei-view/internal/api"
-	"github.com/tjst-t/sakutei-view/internal/httpclient"
-	"github.com/tjst-t/sakutei-view/internal/source/containerlab"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/source/sakutei"
-	"github.com/tjst-t/sakutei-view/internal/timeline"
-	"github.com/tjst-t/sakutei-view/internal/webui"
+	"github.com/tjst-t/clab-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/api"
+	"github.com/tjst-t/clab-view/internal/httpclient"
+	"github.com/tjst-t/clab-view/internal/source/containerlab"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/sakutei"
+	"github.com/tjst-t/clab-view/internal/timeline"
+	"github.com/tjst-t/clab-view/internal/webui"
 )
 
 func main() {
@@ -102,7 +102,7 @@ func run() error {
 		// run().
 		go func() {
 			if err := apiServer.RunEventPump(context.Background()); err != nil {
-				log.Printf("sakutei-view: event pump stopped: %v", err)
+				log.Printf("clab-view: event pump stopped: %v", err)
 			}
 		}()
 	}
@@ -118,7 +118,7 @@ func run() error {
 	// the more specific /api/* and /healthz patterns above over it.
 	mux.Handle("/", http.FileServerFS(webui.FS()))
 
-	log.Printf("sakutei-view listening on %s", addr)
+	log.Printf("clab-view listening on %s", addr)
 	return http.ListenAndServe(addr, mux)
 }
 

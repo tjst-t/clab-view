@@ -1,7 +1,7 @@
-# sakutei-view's web UI
+# clab-view's web UI
 
 React + TypeScript + Vite + [Cytoscape.js](https://js.cytoscape.org/), built
-against sakutei-view's own `GET /api/snapshot` and `GET /api/events` (see
+against clab-view's own `GET /api/snapshot` and `GET /api/events` (see
 [../README.md](../README.md)). It shows the containerlab topology (as a
 Cytoscape.js diagram, color-coded by each node's Sakutei/plugin-derived
 state), Sakutei's resource summary and halted-reason list, its dependency
@@ -42,5 +42,5 @@ changing anything here, refresh it and commit the result:
 
 This runs `npm ci && npm run build` in this directory and copies `dist/`
 into `../internal/webui/dist`. Without this step, `go build
-./cmd/sakutei-view` will keep serving whatever frontend build was last
+./cmd/clab-view` will keep serving whatever frontend build was last
 committed, not your local changes.

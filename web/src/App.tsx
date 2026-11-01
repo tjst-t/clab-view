@@ -86,7 +86,7 @@ export default function App() {
           className="mono"
           style={{ fontSize: 18, fontWeight: 600, letterSpacing: 0.2, margin: 0 }}
         >
-          sakutei-view
+          clab-view
         </h1>
         <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
           containerlab + Sakutei, one read-only view

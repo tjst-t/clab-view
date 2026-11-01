@@ -1,6 +1,6 @@
 package api
 
-import "github.com/tjst-t/sakutei-view/internal/aggregate"
+import "github.com/tjst-t/clab-view/internal/aggregate"
 
 // nodeResponse is aggregate.Node plus its computed Color, which the
 // aggregate package exposes only as a method (Node.Color()) rather than a

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-frontend.sh builds the web/ frontend (Vite+React+TypeScript) and
 # copies its production output into internal/webui/dist, which
-# internal/webui embeds into the sakutei-view binary via go:embed. It also
+# internal/webui embeds into the clab-view binary via go:embed. It also
 # writes internal/webui/source-hash.txt, a hash of the web/ source dist/ was
 # just built from -- internal/webui/sourcehash_test.go recomputes that hash
 # under plain `go test` (no Node.js) and fails if web/ has since changed
@@ -10,7 +10,7 @@
 # Run this after changing anything under web/src (or web's dependencies),
 # then commit the resulting internal/webui/dist and source-hash.txt
 # alongside your change — both are checked into git (despite being
-# generated output) specifically so that `go build ./cmd/sakutei-view`
+# generated output) specifically so that `go build ./cmd/clab-view`
 # works on a fresh checkout with no Node.js involved. CI / local Go-only
 # workflows never need to run this script; only frontend changes do.
 #

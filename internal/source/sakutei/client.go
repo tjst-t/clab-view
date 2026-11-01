@@ -99,7 +99,7 @@ func decodeJSON[T any](resp *http.Response, path string) (T, error) {
 
 	var typeErr *json.UnmarshalTypeError
 	if errors.As(err, &typeErr) {
-		// One field's JSON value had a shape sakutei-view doesn't recognize
+		// One field's JSON value had a shape clab-view doesn't recognize
 		// for its Go type (e.g. a Sakutei version change). encoding/json
 		// skips that field and decodes every other field as usual, so v is
 		// still usable -- do not throw the whole response away over one

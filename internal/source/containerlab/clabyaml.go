@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// clabYAMLDoc is the minimal shape sakutei-view needs out of a generated
+// clabYAMLDoc is the minimal shape clab-view needs out of a generated
 // .clab.yml file: the lab's declared name (the "name:" top-level field,
 // which containerlab prefixes onto each node to get its container name --
 // see shortNodeName) and its topology.links section (used to draw the
@@ -16,7 +16,7 @@ import (
 //
 // Deliberately decodes only these two things. A .clab.yml has many more
 // fields (node definitions, startup configs, per-kind settings, ...) that
-// sakutei-view has no use for and does not attempt to parse.
+// clab-view has no use for and does not attempt to parse.
 type clabYAMLDoc struct {
 	Name     string `yaml:"name"`
 	Topology struct {

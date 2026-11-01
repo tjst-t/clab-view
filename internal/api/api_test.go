@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
-	"github.com/tjst-t/sakutei-view/internal/source/containerlab"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/timeline"
+	"github.com/tjst-t/clab-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/source/containerlab"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/timeline"
 )
 
 // stubAggregator is a fixed Aggregator for tests, standing in for

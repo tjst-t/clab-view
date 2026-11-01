@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# run-demo.sh -- bring up the sakutei-view demo stack in one step: the real
+# run-demo.sh -- bring up the clab-view demo stack in one step: the real
 # Sakutei (fetched and built from the public release, not a mock), the
-# example plugin, and sakutei-view itself, wired together against this
+# example plugin, and clab-view itself, wired together against this
 # directory's intent (examples/demo/sakutei/intent).
 #
 # This script does NOT touch containerlab or the redfish/ BMC piece -- it
@@ -29,8 +29,8 @@
 #                          containerlab topology provides one; see README.md)
 #   PLUGIN_PORT           port for the example plugin (default 8081)
 #   SAKUTEI_READ_LISTEN   address for Sakutei's read-only API (default 127.0.0.1:9471)
-#   VIEW_LISTEN           address for sakutei-view itself (default 127.0.0.1:8080)
-#   BASIC_AUTH_USER / BASIC_AUTH_PASSWORD   sakutei-view's Basic auth (default demo/demo)
+#   VIEW_LISTEN           address for clab-view itself (default 127.0.0.1:8080)
+#   BASIC_AUTH_USER / BASIC_AUTH_PASSWORD   clab-view's Basic auth (default demo/demo)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 demo_dir="$(pwd)"
@@ -49,7 +49,7 @@ basic_auth_password="${BASIC_AUTH_PASSWORD:-demo}"
 pidfile() { echo "$run_dir/$1.pid"; }
 
 stop_all() {
-  for name in sakutei-view plugin sakutei; do
+  for name in clab-view plugin sakutei; do
     f="$(pidfile "$name")"
     if [ -f "$f" ]; then
       pid="$(cat "$f" 2>/dev/null || true)"
@@ -81,8 +81,8 @@ if [ -n "${REDFISH_CONFIG:-}" ]; then
   redfish_args=(-redfish-config "$REDFISH_CONFIG")
 fi
 
-echo "==> building sakutei-view"
-( cd "$repo_root" && go build -o "$run_dir/sakutei-view" ./cmd/sakutei-view )
+echo "==> building clab-view"
+( cd "$repo_root" && go build -o "$run_dir/clab-view" ./cmd/clab-view )
 
 echo "==> building the example plugin"
 ( cd "$repo_root" && go build -o "$run_dir/example-plugin" ./examples/example-plugin )
@@ -110,29 +110,29 @@ echo $! >"$(pidfile sakutei)"
 
 sleep 2
 
-echo "==> starting sakutei-view (${view_listen})"
+echo "==> starting clab-view (${view_listen})"
 CONTAINERLAB_SOURCE=plugin \
 PLUGIN_BASE_URL="http://127.0.0.1:${plugin_port}" \
 SAKUTEI_BASE_URL="http://${sakutei_read_listen}" \
 BASIC_AUTH_USER="$basic_auth_user" \
 BASIC_AUTH_PASSWORD="$basic_auth_password" \
 LISTEN_ADDR="$view_listen" \
-"$run_dir/sakutei-view" >"$run_dir/sakutei-view.log" 2>&1 &
-echo $! >"$(pidfile sakutei-view)"
+"$run_dir/clab-view" >"$run_dir/clab-view.log" 2>&1 &
+echo $! >"$(pidfile clab-view)"
 
 sleep 1
 
 cat <<BANNER
 
 ==================================================================
-sakutei-view is up: http://${view_listen}/
+clab-view is up: http://${view_listen}/
   user: ${basic_auth_user}   password: ${basic_auth_password}
 
 Open it in a browser, then use the Operations panel to run the
 "lun-drift" script's Disturb / Fix actions and watch them show up
 in Live events.
 
-Logs: ${run_dir}/{sakutei,plugin,sakutei-view}.log
+Logs: ${run_dir}/{sakutei,plugin,clab-view}.log
 Press Ctrl+C to stop everything (or run this script again with "stop").
 ==================================================================
 

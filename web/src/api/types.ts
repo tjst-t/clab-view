@@ -1,4 +1,4 @@
-// Mirrors the JSON shapes served by sakutei-view's Go backend
+// Mirrors the JSON shapes served by clab-view's Go backend
 // (internal/api/types.go, internal/aggregate/aggregate.go,
 // internal/aggregate/events.go, internal/source/sakutei/types.go). Kept
 // hand-written rather than generated: the backend's JSON surface is small

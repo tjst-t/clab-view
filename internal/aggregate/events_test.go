@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/source/sakutei"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/sakutei"
 )
 
 const sakuteiEventsFixture = `data: {"time":"2026-10-28T00:00:00Z","kind":"drift","severity":"warning","resource":"leaf1","message":"leaf1 drifted","state":"firing"}

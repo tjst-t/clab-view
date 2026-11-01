@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tjst-t/sakutei-view/internal/webui"
+	"github.com/tjst-t/clab-view/internal/webui"
 )
 
 func main() {

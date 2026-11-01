@@ -1,4 +1,4 @@
-# containerlab topology for the sakutei-view demo.
+# containerlab topology for the clab-view demo.
 #
 # Deployed and torn down for real with `containerlab deploy` /
 # `containerlab destroy` as part of this repository's own development
@@ -33,10 +33,10 @@
 #
 #   containerlab deploy -t examples/demo/topology.clab.yml
 #
-name: sakutei-view-demo
+name: clab-view-demo
 
 mgmt:
-  network: sakutei-view-demo
+  network: clab-view-demo
   ipv4-subnet: 172.30.30.0/24
 
 topology:

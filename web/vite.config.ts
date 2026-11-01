@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 //
 // In dev, the browser talks to Vite's own server, which proxies /api/*
-// through to the real sakutei-view backend (cmd/sakutei-view) so there is
+// through to the real clab-view backend (cmd/clab-view) so there is
 // no CORS configuration to maintain and the frontend code never needs to
 // know the backend's address. Override the target with VITE_API_PROXY_TARGET
 // if the backend is listening somewhere other than the default

@@ -110,7 +110,7 @@ export function subscribeEvents(
     try {
       onEvent(JSON.parse(ev.data) as LiveEvent)
     } catch (err) {
-      console.error('sakutei-view: could not parse event payload', err, ev.data)
+      console.error('clab-view: could not parse event payload', err, ev.data)
     }
   }
 

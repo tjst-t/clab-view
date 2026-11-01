@@ -1,10 +1,10 @@
-// Package api serves sakutei-view's own HTTP API: a REST snapshot endpoint
+// Package api serves clab-view's own HTTP API: a REST snapshot endpoint
 // (GET /api/snapshot) for the browser's initial load, and a Server-Sent
 // Events stream (GET /api/events) for live updates afterward. Both are
 // backed by an Aggregator (normally *internal/aggregate.Aggregator).
 //
 // The server does not decide where to listen or whether that address is
-// reachable beyond localhost — that is cmd/sakutei-view's job (it defaults
+// reachable beyond localhost — that is cmd/clab-view's job (it defaults
 // to a localhost-only address; exposing it further is a separate, explicit
 // choice made outside this package). This package only optionally adds
 // HTTP Basic auth in front of its own two routes, for deployments that do
@@ -20,9 +20,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/timeline"
+	"github.com/tjst-t/clab-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/timeline"
 )
 
 // Aggregator is the subset of *aggregate.Aggregator this package needs.
@@ -59,7 +59,7 @@ type Server struct {
 
 	// Timeline, if non-nil, makes GET /api/events durable: a single
 	// background subscription (started by calling RunEventPump once, from
-	// cmd/sakutei-view) persists every event through it, and each browser's
+	// cmd/clab-view) persists every event through it, and each browser's
 	// own GET /api/events request replays its backlog (via Timeline.Since)
 	// before switching to live delivery (via Timeline.Subscribe), with an
 	// "id:" line on every SSE event so the browser's own EventSource can
@@ -107,7 +107,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		userOK := subtle.ConstantTimeCompare([]byte(user), []byte(s.BasicAuthUser)) == 1
 		passOK := subtle.ConstantTimeCompare([]byte(pass), []byte(s.BasicAuthPassword)) == 1
 		if !ok || !userOK || !passOK {
-			w.Header().Set("WWW-Authenticate", `Basic realm="sakutei-view"`)
+			w.Header().Set("WWW-Authenticate", `Basic realm="clab-view"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -218,7 +218,7 @@ func (s *Server) writePluginError(w http.ResponseWriter, what string, err error)
 // overlap the start of the live feed, since step 1 happens before step 2 to
 // avoid missing an event that arrives in between). The actual upstream
 // subscription (Aggregator.Events) is owned by RunEventPump, started once
-// from cmd/sakutei-view, not by this handler — multiple browser tabs share
+// from cmd/clab-view, not by this handler — multiple browser tabs share
 // it through Timeline rather than each opening their own.
 //
 // lastEventID comes from the Last-Event-ID request header, which browsers

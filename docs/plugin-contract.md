@@ -1,21 +1,21 @@
 # Device plugin contract — v0.4
 
-sakutei-view reads two kinds of data it does not generate itself:
+clab-view reads two kinds of data it does not generate itself:
 containerlab's state and Sakutei's state. A third, optional kind — a
 **device plugin** — lets a deployment add its own device state and demo
-scripts without sakutei-view knowing anything about that device.
+scripts without clab-view knowing anything about that device.
 
 A device plugin is a small HTTP service that the deployment writes and
-runs itself (in its own, typically private, repository). sakutei-view only
+runs itself (in its own, typically private, repository). clab-view only
 needs this contract to be able to read it. This document is the contract.
-It is versioned independently of sakutei-view itself; a plugin declares
-the contract version it implements, and sakutei-view will refuse to use a
+It is versioned independently of clab-view itself; a plugin declares
+the contract version it implements, and clab-view will refuse to use a
 plugin whose major version it does not understand.
 
 This document describes **0.4**. It is still pre-1.0 and may change in
 backwards-incompatible ways before 1.0, but 0.1 through 0.4 are all
 compatible with each other in practice: every field a later version adds
-is optional, and a sakutei-view that understands 0.4 also understands a
+is optional, and a clab-view that understands 0.4 also understands a
 0.1, 0.2 or 0.3 plugin's responses (the newer fields simply come back
 empty). A 0.1, 0.2 or 0.3 plugin needs no changes to keep working; see
 "Changes in v0.4", "Changes in v0.3" and "Changes in v0.2" below if you
@@ -26,26 +26,26 @@ are writing or updating a plugin.
 - All endpoints are plain HTTP/1.1 (or HTTP/2), JSON in and out, unless
   noted otherwise.
 - Timestamps are RFC 3339 (`2026-10-28T06:00:00Z`).
-- When sakutei-view calls a plugin, it sends a bearer token:
+- When clab-view calls a plugin, it sends a bearer token:
   `Authorization: Bearer <token>`. The token is configured on the
-  sakutei-view side; a plugin may ignore it (for local examples/demos) or
+  clab-view side; a plugin may ignore it (for local examples/demos) or
   enforce it (recommended for anything reachable beyond localhost).
 - A plugin may be served over plain HTTP (for local examples/demos) or
-  HTTPS. For HTTPS, sakutei-view verifies the plugin's certificate; if the
+  HTTPS. For HTTPS, clab-view verifies the plugin's certificate; if the
   plugin uses a private CA, that CA's certificate must be configured on
-  the sakutei-view side. sakutei-view has no option to skip certificate
+  the clab-view side. clab-view has no option to skip certificate
   verification, so a plugin reachable beyond localhost should use either a
   publicly-trusted certificate or a CA the deployment is willing to
-  configure on the sakutei-view side.
+  configure on the clab-view side.
 - Write-ish endpoints (`POST .../actions/...`) are the only ones that
   cause the plugin to do something; everything else is a read.
 - `kind` values for state/events are free-form strings chosen by the
-  plugin author (e.g. `storage`, `tape`, `bmc`). sakutei-view does not
+  plugin author (e.g. `storage`, `tape`, `bmc`). clab-view does not
   special-case any of them in v1 beyond choosing an icon/color if it
   recognizes one; unrecognized kinds get a generic rendering.
 - Event `level` follows the same two values Sakutei itself uses:
   `firing` (something started/is true now) and `resolved` (it stopped/is
-  no longer true). This lets sakutei-view merge plugin events and Sakutei
+  no longer true). This lets clab-view merge plugin events and Sakutei
   events into one timeline without special-casing either source.
 
 ## Changes in v0.4
@@ -99,16 +99,16 @@ are writing or updating a plugin.
     - `file`: the declaration file this resource's desired state is
       written in, or `null` if it has none of its own (a resource that is
       instead computed/generated from other declarations -- see
-      `derived`/`derived_from`). sakutei-view shows a `null` `file` as its
+      `derived`/`derived_from`). clab-view shows a `null` `file` as its
       own, separately labeled case ("not itself a declaration"), not by
       hiding the entry.
     - `key`: locates the specific item within `file`, free-form and
       plugin-chosen -- e.g. `"resources[name=db1]"` to address one
       entry of an array by a stable field rather than by numeric index
-      (which shifts as the file is edited). sakutei-view displays `key`
+      (which shifts as the file is edited). clab-view displays `key`
       as-is; it does not parse or validate it.
     - `why`: the human-readable rationale carried alongside the
-      declaration, or `null` if the declaration has none. sakutei-view
+      declaration, or `null` if the declaration has none. clab-view
       shows a `null` `why` as "no rationale recorded", not by hiding it --
       the absence itself is worth surfacing.
     - `derived` (optional, default `false`): `true` when this resource's
@@ -120,13 +120,13 @@ are writing or updating a plugin.
   - `policy_sources[]`: one entry per boundary-firewall permit rule a
     plugin has source information for. `name`/`from`/`to`/`proto`/`ports`
     identify the rule itself (free-form strings/numbers, plugin-chosen,
-    matched by sakutei-view to whatever it already knows about the rule
+    matched by clab-view to whatever it already knows about the rule
     by `name`); `file`/`key`/`why` mean exactly what they mean for
     `sakutei_sources` above.
 
   Both fields are entirely optional and independent of each other; a
   plugin that has no source information to offer (for either or both)
-  can omit the field (or send an empty array), and sakutei-view then
+  can omit the field (or send an empty array), and clab-view then
   simply shows no source information for any resource/rule, exactly as a
   v0.1/v0.2/v0.3 plugin's responses are already understood.
 
@@ -153,7 +153,7 @@ are writing or updating a plugin.
   }
   ```
 
-  sakutei-view's default rule for matching a Sakutei resource to a
+  clab-view's default rule for matching a Sakutei resource to a
   containerlab node is generic: it takes the first `/`-delimited segment
   of the resource's `local_id` (Sakutei's own per-resource identifier,
   distinct from its globally-unique `id`) and treats that as the node
@@ -168,7 +168,7 @@ are writing or updating a plugin.
   any specific resource id, by its Sakutei `id` (not `local_id`). An
   entry here always wins over the generic rule for that resource id. The
   field is entirely optional; a plugin that doesn't need it can omit it,
-  and sakutei-view then falls back to the generic rule for every
+  and clab-view then falls back to the generic rule for every
   resource, exactly as a v0.1/v0.2 plugin's responses are already
   understood.
 
@@ -199,7 +199,7 @@ since a plugin's exclusivity is not always held by one of its own runs.
 
 ## `GET /plugin`
 
-Capability/version discovery. Always the first call sakutei-view makes to
+Capability/version discovery. Always the first call clab-view makes to
 a configured plugin.
 
 ```json
@@ -222,7 +222,7 @@ a configured plugin.
 
 Returns containerlab's topology and state as-is, for deployments that
 would rather not run a persistent `clab-api-server`. This is an
-alternative to sakutei-view talking to `clab-api-server` directly; a
+alternative to clab-view talking to `clab-api-server` directly; a
 deployment picks one data source for containerlab data, not both.
 
 ```json
@@ -243,9 +243,9 @@ carry secrets in their `env` blocks (API tokens, credential keys, SNMP
 community strings, database passwords, ...), since that file is also how
 the deployment configures its own nodes. A plugin SHOULD redact such
 secrets (and any similarly secret-shaped fields) out of `clab_yaml` and
-`inspect` before returning them — sakutei-view has no way to tell a
+`inspect` before returning them — clab-view has no way to tell a
 legitimate configuration value from a secret on its own. Regardless of
-whether a plugin does this, sakutei-view MUST NOT expose `inspect` or
+whether a plugin does this, clab-view MUST NOT expose `inspect` or
 `clab_yaml` content (including `env` values) via its own API (`GET
 /api/snapshot`, `GET /api/events`, or anywhere else a browser can reach) —
 it only ever derives link and node-attribute data from them and discards
@@ -278,7 +278,7 @@ Sakutei's `/status` for things Sakutei does not itself model.
 - `resources[].state`: one of `ok`, `drifted`, `unknown`, `error`.
 - `resources[].node`: the *topology* node name this resource belongs to
   (a `.clab.yml` node key — never containerlab's `clab-<lab-name>-<node>`
-  container name), so sakutei-view can draw its state on the matching
+  container name), so clab-view can draw its state on the matching
   topology node. Empty string if there is no corresponding containerlab
   node.
 - `resources[].fields`: free-form key/value pairs, shown as-is in the
@@ -386,7 +386,7 @@ Status of a previously started run.
 
 ## `GET /plugin/events` (Server-Sent Events)
 
-A live stream of this plugin's own events, merged by sakutei-view into
+A live stream of this plugin's own events, merged by clab-view into
 the same timeline as Sakutei's `/events`.
 
 Each SSE message carries an `id:` field (a monotonically increasing or
@@ -413,5 +413,5 @@ data: {"kind":"Fixed","level":"resolved","resource_id":"demo-storage-01","messag
 
 See [examples/example-plugin](../examples/example-plugin) for a complete,
 dependency-free Go implementation of this contract with static/fake data,
-useful as a starting point and for exercising sakutei-view without a real
+useful as a starting point and for exercising clab-view without a real
 device behind it.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/source/containerlab"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/source/sakutei"
+	"github.com/tjst-t/clab-view/internal/source/containerlab"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/sakutei"
 )
 
 // mockContainerlabSource is a fixed-topology containerlab.Source, standing
@@ -578,7 +578,7 @@ func TestAggregator_Snapshot_SakuteiBindingPluginWithoutBindingsField(t *testing
 }
 
 // TestAggregator_Snapshot_HealthReflectsAnySakuteiEndpointFailing is the
-// regression test for a bug where sakutei-view's three independent polls of
+// regression test for a bug where clab-view's three independent polls of
 // Sakutei (/status, /plan, /graph) each wrote to the same
 // Health[SourceSakutei] entry: whichever one ran last always won, so a
 // failing /status could be silently masked by a succeeding /plan or /graph

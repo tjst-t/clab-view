@@ -1,4 +1,4 @@
-# sakutei-view
+# clab-view
 
 A small, read-only web view for a [Containerlab](https://containerlab.dev/)-based
 lab and the declarative infrastructure convergence engine
@@ -26,7 +26,7 @@ repository knowing anything about any particular deployment.
 
 ## How it reads data
 
-sakutei-view is a single Go binary (with the web UI embedded) that polls or
+clab-view is a single Go binary (with the web UI embedded) that polls or
 subscribes to three plain HTTP sources and merges them into one live view
 over Server-Sent Events:
 
@@ -107,14 +107,14 @@ No outbound connection (to clab-api-server, Sakutei, or a plugin) ever skips
 TLS certificate verification; see [internal/httpclient](internal/httpclient).
 
 ```sh
-go build ./cmd/sakutei-view
-CONTAINERLAB_SOURCE=plugin PLUGIN_BASE_URL=http://127.0.0.1:8081 ./sakutei-view
+go build ./cmd/clab-view
+CONTAINERLAB_SOURCE=plugin PLUGIN_BASE_URL=http://127.0.0.1:8081 ./clab-view
 ```
 
-`go build ./cmd/sakutei-view` is all that's needed to get a complete,
+`go build ./cmd/clab-view` is all that's needed to get a complete,
 web-UI-included binary — the frontend's build output is already embedded
 (see [internal/webui](internal/webui)) and committed to this repository, so
-building sakutei-view itself never requires Node.js or a network fetch. The
+building clab-view itself never requires Node.js or a network fetch. The
 resulting binary serves the web UI at `/` alongside the JSON/SSE API at
 `/api/snapshot` and `/api/events`.
 
@@ -131,7 +131,7 @@ has and hasn't been verified against the real public Sakutei release.
 The browser-facing page lives under [web/](web/) (React + TypeScript + Vite +
 Cytoscape.js) and talks only to this binary's `/api/snapshot` and
 `/api/events`. See [web/README.md](web/README.md) for its own dev workflow
-(`npm install && npm run dev`, proxied to a `go run ./cmd/sakutei-view`
+(`npm install && npm run dev`, proxied to a `go run ./cmd/clab-view`
 instance).
 
 If you change anything under `web/src` (or `web`'s dependencies), rebuild
@@ -145,7 +145,7 @@ This runs `npm ci && npm run build` in `web/` and copies the result into
 [internal/webui/dist](internal/webui/dist), which is what `go:embed`
 actually packages into the binary. `internal/webui/dist` is generated
 output but is checked into git on purpose, specifically so that a plain
-`go build ./cmd/sakutei-view` on a fresh checkout — with no `npm install`,
+`go build ./cmd/clab-view` on a fresh checkout — with no `npm install`,
 no network access, no Node.js — produces the full single-binary
 deployment.
 

@@ -1,7 +1,7 @@
 // Command example-plugin is a minimal, dependency-free reference
-// implementation of the sakutei-view device plugin contract (see
+// implementation of the clab-view device plugin contract (see
 // docs/plugin-contract.md, version 0.4). It serves static/fake data and a
-// toy "disturb"/"fix" demo script, useful for exercising sakutei-view
+// toy "disturb"/"fix" demo script, useful for exercising clab-view
 // without any real device behind it.
 //
 // Run:
@@ -156,7 +156,7 @@ func (s *server) handleStatus(w http.ResponseWriter, r *http.Request) {
 				"ports": []int{8081},
 				"file":  "network.yml",
 				"key":   "firewall.rules[name=mgmt-to-storage01-api]",
-				"why":   "sakutei-view's plugin client reaches this example plugin over this port",
+				"why":   "clab-view's plugin client reaches this example plugin over this port",
 			},
 		},
 	})

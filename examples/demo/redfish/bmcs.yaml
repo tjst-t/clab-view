@@ -1,4 +1,4 @@
-# --redfish-config for the sakutei-view demo (optional -- the base
+# --redfish-config for the clab-view demo (optional -- the base
 # dnszone/nftables path works without it).
 #
 # Modeled on the real schema documented in Sakutei's own
@@ -12,7 +12,7 @@
 # address below matches server01's mgmt-ipv4 in examples/demo/topology.clab.yml.
 # qemu-bmc's Redfish endpoint uses a self-signed certificate, hence
 # insecure_skip_verify (acceptable for this throwaway demo lab only --
-# sakutei-view's own internal/httpclient never offers a TLS-verification-skip
+# clab-view's own internal/httpclient never offers a TLS-verification-skip
 # option; this is Sakutei's own, separate --redfish-config, for a demo BMC
 # that has no real CA).
 secret_store: secrets.json

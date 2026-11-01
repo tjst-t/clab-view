@@ -1,9 +1,9 @@
-// Package timeline persists sakutei-view's own merged event feed
+// Package timeline persists clab-view's own merged event feed
 // (internal/aggregate.Event) to a local append-only file, so that:
 //
 //   - reloading the browser page shows events that happened before the
 //     page was opened;
-//   - restarting the sakutei-view process does not lose history;
+//   - restarting the clab-view process does not lose history;
 //   - reconnecting to the plugin's or Sakutei's event stream does not
 //     record the same logical event twice.
 //
@@ -12,11 +12,11 @@
 // language — only "give me everything after sequence N" (Since) and
 // "notify me of everything new" (Subscribe). Months-long history is
 // explicitly out of scope; point an external log/metrics tool at the
-// JSONL file itself (or sakutei-view's stdout) for that.
+// JSONL file itself (or clab-view's stdout) for that.
 //
 // Storage format: one JSON object per line (JSONL), appended to a single
 // file. This avoids adding a database dependency (e.g. SQLite) just to
-// keep sakutei-view a dependency-light single binary; a JSONL file is
+// keep clab-view a dependency-light single binary; a JSONL file is
 // trivial to inspect, grep, and ship or rotate alongside the binary.
 //
 // See docs/event-timeline.md for the de-duplication and resume design
@@ -37,11 +37,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/aggregate"
 )
 
 // DefaultMaxCount is a reasonable default for Config.MaxCount, used by
-// cmd/sakutei-view when EVENTS_STORE_PATH is set but EVENTS_RETENTION_COUNT
+// cmd/clab-view when EVENTS_STORE_PATH is set but EVENTS_RETENTION_COUNT
 // is not, so that enabling the timeline without tuning its retention still
 // bounds the file rather than growing it forever.
 const DefaultMaxCount = 10000
@@ -88,7 +88,7 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 
 // Config configures a Store. MaxCount and MaxAge are independent: whichever
 // one would remove more entries wins for a given entry. Leaving both at
-// zero means no retention at all (the file grows forever) — cmd/sakutei-view
+// zero means no retention at all (the file grows forever) — cmd/clab-view
 // applies a non-zero default so that leaving the EVENTS_RETENTION_* env vars
 // unset in practice still bounds the file; see its doc comment.
 type Config struct {

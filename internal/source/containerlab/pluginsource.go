@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
 )
 
 // PluginSource is a Source backed by a device plugin's GET /plugin/topology

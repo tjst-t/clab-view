@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
 )
 
 // pluginTopologyFixture mirrors GET /plugin/topology's response, whose

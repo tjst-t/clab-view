@@ -1,4 +1,4 @@
-module github.com/tjst-t/sakutei-view
+module github.com/tjst-t/clab-view
 
 go 1.22
 

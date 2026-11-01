@@ -1,5 +1,5 @@
 # Sakutei intent fragment for the optional redfish-system resource in the
-# sakutei-view demo. Verified for real in this repository's own
+# clab-view demo. Verified for real in this repository's own
 # development: deployed examples/demo/topology.clab.yml, then ran the real
 # Sakutei v2.6.0 binary with --redfish-config examples/demo/redfish/bmcs.yaml
 # against this fragment -- plan showed the power On + boot_enabled change,

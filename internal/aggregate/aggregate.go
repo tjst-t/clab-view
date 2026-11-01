@@ -1,4 +1,4 @@
-// Package aggregate combines sakutei-view's three data sources — the
+// Package aggregate combines clab-view's three data sources — the
 // containerlab topology/liveness (internal/source/containerlab), Sakutei's
 // read-only resource status (internal/source/sakutei), and a device
 // plugin's own resource status (internal/source/plugin) — into one
@@ -6,7 +6,7 @@
 // node's overall color (ok/drift/apply_failed/...).
 //
 // Sakutei is a generic, provider-agnostic reconciler: it has no built-in
-// notion of "this resource is that containerlab node". sakutei-view bridges
+// notion of "this resource is that containerlab node". clab-view bridges
 // the two with a generic convention plus an explicit override:
 //
 //   - Generic: a Sakutei resource overlays the containerlab node named by
@@ -49,9 +49,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tjst-t/sakutei-view/internal/source/containerlab"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
-	"github.com/tjst-t/sakutei-view/internal/source/sakutei"
+	"github.com/tjst-t/clab-view/internal/source/containerlab"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/source/sakutei"
 )
 
 // Defaults used when the corresponding Aggregator field is zero.
@@ -70,7 +70,7 @@ const (
 	DefaultReconnectMax = 30 * time.Second
 )
 
-// Color is the overall color-coding sakutei-view shows for a node.
+// Color is the overall color-coding clab-view shows for a node.
 type Color string
 
 const (
@@ -253,7 +253,7 @@ type Snapshot struct {
 	SakuteiGraph *SakuteiGraph `json:"sakutei_graph,omitempty"`
 	// SakuteiSources is a device plugin's optional declaration-source
 	// metadata for Sakutei resources (GET /plugin/status's sakutei_sources,
-	// contract v0.4), passed through as-is -- sakutei-view does not
+	// contract v0.4), passed through as-is -- clab-view does not
 	// interpret File/Key/Why itself, only displays them. Nil if no plugin is
 	// configured or it reported none.
 	SakuteiSources []plugin.SakuteiSource `json:"sakutei_sources,omitempty"`

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tjst-t/sakutei-view/internal/aggregate"
-	"github.com/tjst-t/sakutei-view/internal/source/containerlab"
-	"github.com/tjst-t/sakutei-view/internal/source/plugin"
+	"github.com/tjst-t/clab-view/internal/aggregate"
+	"github.com/tjst-t/clab-view/internal/source/containerlab"
+	"github.com/tjst-t/clab-view/internal/source/plugin"
 )
 
 // A device plugin's GET /plugin/topology response carries two kinds of raw,
@@ -19,14 +19,14 @@ import (
 // file as a plain string, whose node definitions can include an "env"
 // block). A real plugin has, in the past, returned secrets embedded in
 // clab_yaml's env values (SNMP community strings, API tokens, ...); the
-// plugin side has since started redacting them, but sakutei-view itself
+// plugin side has since started redacting them, but clab-view itself
 // must independently guarantee it never forwards that content regardless
 // of what a plugin sends — see docs/plugin-contract.md's "clab_yaml and
 // inspect must not be re-exposed" note.
 //
 // This is a true end-to-end test: a fake plugin HTTP server stands in for
 // the device plugin, containerlab.NewPluginSource and aggregate.New wire it
-// up exactly as cmd/sakutei-view does, and the assertions run against the
+// up exactly as cmd/clab-view does, and the assertions run against the
 // literal bytes this package's own handlers (handleSnapshot, handleEvents)
 // write to an http.ResponseWriter -- not against any intermediate Go
 // struct, which could pass even if some future change serialized a raw

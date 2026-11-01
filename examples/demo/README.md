@@ -1,7 +1,7 @@
 # Public demo configuration
 
-A small, generic configuration for trying sakutei-view end to end: a
-containerlab topology, a Sakutei intent, and sakutei-view's example plugin,
+A small, generic configuration for trying clab-view end to end: a
+containerlab topology, a Sakutei intent, and clab-view's example plugin,
 wired together so you can watch "something drifts → Sakutei fixes it" live
 in the UI via `/api/events`.
 
@@ -20,7 +20,7 @@ resource IDs are all placeholders chosen for this demo.
 - `redfish/` -- an optional `--redfish-config` and intent fragment for the
   `redfish-system` provider, targeting `server01`'s BMC.
 - `run-demo.sh` -- starts the real Sakutei, the example plugin, and
-  sakutei-view together in one step (containerlab-independent half of the
+  clab-view together in one step (containerlab-independent half of the
   demo; pass `REDFISH_CONFIG` once the topology below is deployed to also
   include the BMC piece).
 
@@ -67,7 +67,7 @@ of it is reference-only anymore:
    also what caught and drove the fix for the `local_id`-vs-`id` bug
    recorded in Backlog item `sakutei-graph-waves-sakutei-id-ready-fal`.
 
-4. **The full demo-operation loop was watched live in sakutei-view,
+4. **The full demo-operation loop was watched live in clab-view,
    running against this real stack** (real Sakutei + real deployed
    containerlab lab + real qemu-bmc, all up together, launched with
    `run-demo.sh REDFISH_CONFIG=redfish/bmcs.yaml`): with
@@ -84,7 +84,7 @@ of it is reference-only anymore:
    stale after the Operations panel was added in a later change and was
    never rebuilt, so the single binary was silently missing the Operations
    panel entirely. `scripts/build-frontend.sh` was re-run and the refreshed
-   `internal/webui/dist` committed; `go build ./cmd/sakutei-view` on a
+   `internal/webui/dist` committed; `go build ./cmd/clab-view` on a
    fresh checkout now ships the current frontend again.
 
 What's still a real limitation, not a shortcut taken here: containerlab's
@@ -102,7 +102,7 @@ reflect on `CONTAINERLAB_SOURCE=clab-api` itself.
 ## Running it for real
 
 Quick start (containerlab-independent half -- real Sakutei, example
-plugin, and sakutei-view, no BMC):
+plugin, and clab-view, no BMC):
 
 ```sh
 examples/demo/run-demo.sh

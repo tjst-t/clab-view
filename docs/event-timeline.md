@@ -7,7 +7,7 @@ the merged event feed to a local file so that:
 
 - reopening or reloading the page shows events that happened before it was
   opened;
-- restarting the `sakutei-view` process does not lose history;
+- restarting the `clab-view` process does not lose history;
 - reconnecting to the plugin's or Sakutei's event stream does not record the
   same logical event twice.
 
@@ -31,7 +31,7 @@ without bound.
 
 One JSON object per line (JSONL), appended to a single file. This was chosen
 over a database (e.g. SQLite) specifically to avoid adding a new third-party
-Go dependency — `sakutei-view` ships as a single, dependency-light binary,
+Go dependency — `clab-view` ships as a single, dependency-light binary,
 and a JSONL file is trivial to inspect (`tail -f`, `jq`), grep, back up, or
 rotate externally without any tooling specific to this project.
 
@@ -102,7 +102,7 @@ retries the plugin's SSE with `Last-Event-ID` on a dropped connection. What
 `timeline` adds is resuming *across a process restart*: `Store` tracks
 `LastPluginEventID()` (the `SourceEventID` of the most recently appended
 plugin event, loaded from disk at `Open` and updated by every later
-`Append`), and `cmd/sakutei-view`'s event pump (`api.Server.RunEventPump`)
+`Append`), and `cmd/clab-view`'s event pump (`api.Server.RunEventPump`)
 passes it as `Events`' `pluginResumeID` parameter, which is sent as
 `Last-Event-ID` on the plugin's very first connection of the new process —
 not only on an in-process reconnect.
@@ -114,7 +114,7 @@ avoid re-storing anything Sakutei resends.
 ## Serving `/api/events` from the timeline
 
 A single background goroutine (`api.Server.RunEventPump`, started once from
-`cmd/sakutei-view`) owns the one upstream subscription to
+`cmd/clab-view`) owns the one upstream subscription to
 `Aggregator.Events` and persists everything it receives via
 `Timeline.Append`. This runs independently of whether any browser tab is
 connected — without it, an event that occurred while no tab was open would
@@ -157,7 +157,7 @@ Months-long history is explicitly not a goal of this package. There is no
 query language beyond "everything after sequence N" and "everything new
 from now on" — no filtering, aggregation, or export. If longer-term history
 or analysis is needed, point an external log/metrics tool at the JSONL file
-itself (it is just JSON Lines) or at `sakutei-view`'s stdout, rather than
+itself (it is just JSON Lines) or at `clab-view`'s stdout, rather than
 extending this package to do that job.
 
 ## Testing

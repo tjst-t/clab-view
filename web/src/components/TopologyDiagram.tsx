@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SnapshotLink, SnapshotNode } from '../api/types'
 import type { Theme } from '../theme'
 import { statusColorHex, statusLabel } from './colors'
+import { CloseButton, NodeDetail, Row } from './NodeDetail'
 import { StatusDot } from './StatusDot'
 
 cytoscape.use(dagre)
@@ -165,8 +166,8 @@ function nodeElement(n: SnapshotNode, theme: Theme): ElementDefinition {
       compact: COMPACT_ROLES.has(role),
       // The backend's own tier number (internal/aggregate/layout.go),
       // not re-derived from the node's rendered/layout position --
-      // clusterRanksByGroup below buckets nodes into "the same rank" by
-      // this value rather than by rounding position().y, because dagre's
+      // compactRanks below buckets nodes into "the same rank" by this
+      // value rather than by rounding position().y, because dagre's
       // 'UL' alignment does not give every node in a rank the exact same
       // rendered y once node heights differ (e.g. a compact firewall
       // glyph vs. a normal-height switch box both on tier 1): rounding
@@ -416,6 +417,7 @@ interface Props {
   nodes: SnapshotNode[]
   links: SnapshotLink[]
   theme: Theme
+  filter: string
 }
 
 /** The side panel's view of a clicked link/LAG-bundle -- read straight off
@@ -478,36 +480,36 @@ function computeGroupBoxes(cy: Core, groups: Map<string, string[]>, theme: Theme
   return boxes
 }
 
-// Minimum clear space left between two *different* groups' frames when
-// their clusters land next to each other on the same rank (see the second
-// pass inside clusterRanksByGroup) -- independent of GROUP_FRAME_PAD
-// itself, so two frames are never left merely touching edge-to-edge.
+// Minimum clear space enforced between two *different* clusters' frames
+// (containerlab `group:` boundaries) when they land on the same rank --
+// independent of GROUP_FRAME_PAD itself, so two frames are never left
+// merely touching edge-to-edge.
 const GROUP_FRAME_MIN_GAP = 20
 
-// After a fresh dagre layout, reorder each rank's *already laid-out* x
-// slots (not their values -- just which node sits in which slot) so that
-// members of the same containerlab `group:` which landed on the same tier
-// sit next to each other, instead of wherever dagre's crossing-minimization
-// heuristic (which has no notion of `group`) happened to interleave them.
-// Reusing dagre's own x values for the slots, width-aware via
-// nodeDimensionsIncludeLabels, means the *reordering* pass can never
-// introduce a new node/node overlap -- it only permutes which node
-// occupies which already non-overlapping horizontal position.
+// dagre's own x-coordinate assignment can leave a sparse rank (few nodes
+// feeding many more below -- e.g. two tier-0 hubs fanning out to a dozen
+// descendants) spread far wider than the nodes themselves need: dagre
+// balances each node's x against the median of everything it connects to,
+// which for a 2-node rank sitting above a wide fan can place the two
+// nodes at opposite extremes of the whole diagram even though nothing
+// requires that much space between them (this is exactly what a real
+// two-spine fabric surfaced -- both spines tied for tier 0, each pushed
+// to a far edge of the canvas instead of sitting together).
 //
-// That reordering alone is not quite enough, though: dagre's nodeSep only
-// guarantees clearance between adjacent *node* boxes, not between the
-// dashed *frames* computeGroupBoxes draws GROUP_FRAME_PAD beyond each
-// group's outermost member -- two different groups' clusters landing
-// right next to each other can still leave their frames overlapping even
-// though the nodes themselves don't (this is exactly what a real topology
-// surfaced: an "edge" cluster and a "leaf" cluster sharing a rank, with
-// nodeSep's gap between them smaller than their two frames' combined pad).
-// A second pass below widens the gap between any two adjacent clusters
-// where at least one is a real (2+ member) framed group, by shifting that
-// cluster and everything to its right -- this only ever pushes things
-// further apart, so it can't introduce a new overlap either.
-function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
-  if (groups.size === 0) return
+// compactRanks repacks every rank's x-coordinates from scratch after
+// layout: same left-to-right order dagre produced, except containerlab
+// `group:` members that landed on the same rank are pulled adjacent to
+// each other first (the same intent an earlier, reorder-only version of
+// this pass had), then the whole rank is packed tightly using each
+// node's own rendered width plus a uniform gap (the layout's own nodeSep,
+// converted to model space by the current zoom) -- widened only at a
+// cluster boundary where at least one side is a real (2+ member) framed
+// group, so two different groups' dashed frames still never touch. The
+// repacked rank is then shifted so its mean x matches the *original*
+// mean x dagre computed for that rank: a rank's rough horizontal
+// position relative to the ranks above/below it is preserved, only the
+// wasted internal spacing collapses.
+function compactRanks(cy: Core, groups: Map<string, string[]>): void {
   const memberOfGroup = new Map<string, string>()
   for (const [g, members] of groups) {
     for (const m of members) memberOfGroup.set(m, g)
@@ -529,29 +531,24 @@ function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
 
   // GROUP_FRAME_PAD/GROUP_FRAME_MIN_GAP are rendered-pixel quantities --
   // computeGroupBoxes applies them to renderedBoundingBox() output, i.e.
-  // *after* zoom. Node .position().x below, by contrast, is model space
-  // (before zoom). A model-space gap and a rendered-pixel pad are not the
-  // same unit: at this diagram's typical zoomed-out scale (e.g. 0.46x for
-  // a modest multi-rank fabric), a 56-rendered-pixel requirement is only
-  // ~26 model units, not 56 -- comparing the two directly (as an earlier
-  // version of this did) silently passed gaps that were actually far too
-  // small once rendered, which is exactly the overlap a real topology
-  // surfaced. Converting the target into model units via the current zoom
-  // (captured once, before this pass's own shifts can change it) fixes
-  // that; the shifts this pass makes are modest enough relative to the
-  // whole diagram that the small zoom change from the layout's later
-  // re-fit doesn't meaningfully erode the margin.
+  // *after* zoom. Node .position().x, by contrast, is model space (before
+  // zoom). Converting the target gap into model units via the current
+  // zoom (captured once, before this pass's own shifts can change it)
+  // keeps the gaps this pass enforces meaningful at whatever scale the
+  // diagram ended up fit to.
   const zoom = cy.zoom()
+  const baseGap = 56 / zoom
+  const clusterGapExtra = (GROUP_FRAME_PAD * 2 + GROUP_FRAME_MIN_GAP) / zoom
 
   cy.batch(() => {
     for (const rankNodes of byRank.values()) {
       if (rankNodes.length < 2) continue
       const sorted = [...rankNodes].sort((a, b) => a.position().x - b.position().x)
-      const slotXs = sorted.map((n) => n.position().x)
+      const originalMean = sorted.reduce((s, n) => s + n.position().x, 0) / sorted.length
 
       // A group only clusters within a rank where 2+ of its members
-      // actually landed on that rank -- a lone member sits wherever it
-      // already was, same as an ungrouped node.
+      // actually landed on that rank -- a lone member is just its own
+      // one-node "cluster", same as an ungrouped node.
       const countInRank = new Map<string, number>()
       for (const n of sorted) {
         const g = memberOfGroup.get(n.id())
@@ -562,11 +559,12 @@ function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
         const g = memberOfGroup.get(n.id())
         return g && (countInRank.get(g) ?? 0) >= 2 ? g : `__single:${n.id()}`
       }
+      const isFramedKey = (key: string) => !key.startsWith('__single:')
 
       // Clusters are collected in the order their first (leftmost, since
       // `sorted` is x-ascending) member is encountered -- so clusterOrder
-      // already reflects "order clusters by their leftmost original x",
-      // without needing a separate sort/anchor computation.
+      // already reflects each cluster's original left-to-right position,
+      // without a separate sort/anchor computation.
       const clusters = new Map<string, NodeSingular[]>()
       const clusterOrder: string[] = []
       for (const n of sorted) {
@@ -580,39 +578,38 @@ function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
         }
       }
 
-      const newOrder: NodeSingular[] = []
-      for (const k of clusterOrder) newOrder.push(...(clusters.get(k) ?? []))
-      newOrder.forEach((n, i) => n.position('x', slotXs[i]))
-
-      // Second pass: ensure adequate clearance between adjacent clusters'
-      // *frames*, not just their nodes (see the doc comment above). Walk
-      // clusters left-to-right, accumulating a rightward shift once a gap
-      // falls short and carrying it forward onto every later cluster in
-      // the same rank, so relative order and every already-sufficient gap
-      // elsewhere in the rank are left untouched.
-      let shift = 0
-      const isFramed = (key: string) => !key.startsWith('__single:')
+      // Flatten into one ordered node list (same-cluster members
+      // adjacent) with the gap to use after each node: baseGap within a
+      // cluster, baseGap + clusterGapExtra across a cluster boundary where
+      // at least one side is a real framed group.
+      const orderedNodes: NodeSingular[] = []
+      const gapAfter: number[] = []
       for (let ci = 0; ci < clusterOrder.length; ci++) {
         const members = clusters.get(clusterOrder[ci]) ?? []
-        if (shift > 0) {
-          for (const n of members) n.position('x', n.position().x + shift)
+        for (let mi = 0; mi < members.length; mi++) {
+          orderedNodes.push(members[mi])
+          if (mi < members.length - 1) gapAfter.push(baseGap)
         }
-        if (ci + 1 >= clusterOrder.length) continue
-        const thisKey = clusterOrder[ci]
-        const nextKey = clusterOrder[ci + 1]
-        if (!isFramed(thisKey) && !isFramed(nextKey)) continue
-        const nextMembers = clusters.get(nextKey) ?? []
-        const padNeeded = (isFramed(thisKey) ? GROUP_FRAME_PAD : 0) + (isFramed(nextKey) ? GROUP_FRAME_PAD : 0)
-        const lastOfThis = members[members.length - 1]
-        const firstOfNext = nextMembers[0]
-        const lastRight = lastOfThis.position().x + lastOfThis.outerWidth() / 2
-        const nextLeft = firstOfNext.position().x - firstOfNext.outerWidth() / 2
-        const currentGap = nextLeft - lastRight
-        const needed = (padNeeded + GROUP_FRAME_MIN_GAP) / zoom
-        if (currentGap < needed) {
-          shift += needed - currentGap
+        if (ci < clusterOrder.length - 1) {
+          const boundary = isFramedKey(clusterOrder[ci]) || isFramedKey(clusterOrder[ci + 1])
+          gapAfter.push(boundary ? baseGap + clusterGapExtra : baseGap)
         }
       }
+
+      // Pack tightly left-to-right from an arbitrary anchor (0), then
+      // shift the whole rank so its new mean lands back on originalMean --
+      // this is what keeps a sparse rank's overall position roughly where
+      // dagre put it while collapsing its internal, often-pointless gaps.
+      const widths = orderedNodes.map((n) => n.outerWidth())
+      const xs: number[] = []
+      let x = 0
+      for (let i = 0; i < orderedNodes.length; i++) {
+        if (i > 0) x += widths[i - 1] / 2 + gapAfter[i - 1] + widths[i] / 2
+        xs.push(x)
+      }
+      const packedMean = xs.reduce((s, v) => s + v, 0) / xs.length
+      const offset = originalMean - packedMean
+      orderedNodes.forEach((n, i) => n.position('x', xs[i] + offset))
     }
   })
 }
@@ -638,12 +635,12 @@ function clusterRanksByGroup(cy: Core, groups: Map<string, string[]>): void {
  * changes, so a color flip (e.g. a disturb/fix demo action) never resets
  * the user's pan/zoom or reshuffles the layout.
  */
-export function TopologyDiagram({ nodes, links, theme }: Props) {
+export function TopologyDiagram({ nodes, links, theme, filter }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const cyRef = useRef<Core | null>(null)
   const [selected, setSelected] = useState<SnapshotNode | null>(null)
   const [selectedLink, setSelectedLink] = useState<SelectedLink | null>(null)
-  const [filter, setFilter] = useState('')
+  const [legendOpen, setLegendOpen] = useState(false)
   const [groupBoxes, setGroupBoxes] = useState<GroupBox[]>([])
 
   const roles = useMemo(() => {
@@ -886,13 +883,13 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
       } as cytoscape.LayoutOptions).run()
       // Dagre's own crossing-minimization has no notion of containerlab
       // `group:` -- pull each rank's group members back together
-      // (see clusterRanksByGroup's doc comment) so the frame drawn around
+      // (see compactRanks's doc comment) so the frame drawn around
       // a group never has to stretch to cover an unrelated node dagre
       // happened to interleave in between.
-      clusterRanksByGroup(cy, nodeGroups)
-      // clusterRanksByGroup's second pass can push nodes wider than the
+      compactRanks(cy, nodeGroups)
+      // compactRanks can change a rank's total width relative to what the
       // layout's own `fit: true` already accounted for (it ran before
-      // that pass existed) -- re-fit with the same padding so nothing
+      // this pass existed) -- re-fit with the same padding so nothing
       // ends up partly outside the visible canvas.
       cy.fit(undefined, 40)
     }
@@ -927,91 +924,79 @@ export function TopologyDiagram({ nodes, links, theme }: Props) {
   }, [filter, nodes, links])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="filter nodes…"
-          className="mono"
-          style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            color: 'var(--text)',
-            fontSize: 12,
-            padding: '6px 10px',
-            width: 220,
-          }}
-        />
-        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>click a node or link for details</span>
-      </div>
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div
-          style={{
-            flex: 1,
-            height: 440,
-            position: 'relative',
-            overflow: 'hidden',
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-          }}
-        >
-          <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            {groupBoxes.map((b) => (
-              <div
-                key={b.id}
-                style={{
-                  position: 'absolute',
-                  left: b.x,
-                  top: b.y,
-                  width: b.w,
-                  height: b.h,
-                  border: `1.5px dashed ${b.color}`,
-                  borderRadius: 8,
-                }}
-              >
-                {/* Label sits *inside* the frame's own top-left corner
-                    (not below/outside it) so it can never be clipped by
-                    the diagram's overflow:hidden, and a group near the
-                    canvas edge never produces a line that visually
-                    "leaks" past the diagram's own border. */}
-                <span
-                  style={{
-                    position: 'absolute',
-                    left: 6,
-                    top: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    fontFamily: 'var(--font-ui)',
-                    color: b.color,
-                    background: 'var(--bg)',
-                    padding: '1px 5px',
-                    borderRadius: 4,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {b.label}
-                </span>
-              </div>
-            ))}
+    <div
+      style={{
+        height: 440,
+        position: 'relative',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+      }}
+    >
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        {groupBoxes.map((b) => (
+          <div
+            key={b.id}
+            style={{
+              position: 'absolute',
+              left: b.x,
+              top: b.y,
+              width: b.w,
+              height: b.h,
+              border: `1.5px dashed ${b.color}`,
+              borderRadius: 8,
+            }}
+          >
+            {/* Label sits *inside* the frame's own top-left corner
+                (not below/outside it) so it can never be clipped by
+                the diagram's overflow:hidden, and a group near the
+                canvas edge never produces a line that visually
+                "leaks" past the diagram's own border. */}
+            <span
+              style={{
+                position: 'absolute',
+                left: 6,
+                top: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: 'var(--font-ui)',
+                color: b.color,
+                background: 'var(--bg)',
+                padding: '1px 5px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {b.label}
+            </span>
           </div>
-        </div>
-        <div
-          style={{
-            width: 220,
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <Legend roles={roles} theme={theme} linkTypes={presentLinkTypes} hasLag={hasLag} />
-          {selectedLink ? <LinkDetail link={selectedLink} /> : selected ? <NodeDetail node={selected} /> : null}
-        </div>
+        ))}
       </div>
+      {/* The legend used to be a permanently-visible 220px column next to
+          the canvas -- most of the time nothing in it needs checking, so
+          it's now a map-style corner control: a small button, open only
+          while someone wants it (same on-demand pattern as the header's
+          Sources popover). */}
+      <LegendButton
+        open={legendOpen}
+        onToggle={() => setLegendOpen((o) => !o)}
+        onClose={() => setLegendOpen(false)}
+        roles={roles}
+        theme={theme}
+        linkTypes={presentLinkTypes}
+        hasLag={hasLag}
+      />
+      {(selected || selectedLink) && (
+        <div style={{ position: 'absolute', top: 10, right: 10, width: 230, zIndex: 5 }}>
+          {selectedLink ? (
+            <LinkDetail link={selectedLink} onClose={() => setSelectedLink(null)} />
+          ) : selected ? (
+            <NodeDetail node={selected} onClose={() => setSelected(null)} />
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }
@@ -1031,11 +1016,13 @@ function Legend({
   theme,
   linkTypes,
   hasLag,
+  onClose,
 }: {
   roles: readonly Role[]
   theme: Theme
   linkTypes: readonly string[]
   hasLag: boolean
+  onClose?: () => void
 }) {
   return (
     <div
@@ -1047,8 +1034,15 @@ function Legend({
         flexDirection: 'column',
         gap: 6,
         fontSize: 12,
+        background: 'var(--surface)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
       }}
     >
+      {onClose && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: -4 }}>
+          <CloseButton onClick={onClose} />
+        </div>
+      )}
       {LEGEND_COLORS.map((c) => (
         <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <StatusDot color={statusColorHex(c, theme)} />
@@ -1185,7 +1179,7 @@ function LagGlyph({ theme }: { theme: Theme }) {
   )
 }
 
-function NodeDetail({ node }: { node: SnapshotNode }) {
+function LinkDetail({ link, onClose }: { link: SelectedLink; onClose?: () => void }) {
   return (
     <div
       style={{
@@ -1196,50 +1190,15 @@ function NodeDetail({ node }: { node: SnapshotNode }) {
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
+        background: 'var(--surface)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
       }}
     >
-      <div className="mono" style={{ fontWeight: 600 }}>
-        {node.name}
-      </div>
-      <Row label="kind" value={node.kind} />
-      <Row label="group" value={node.group} />
-      <Row label="containerlab" value={[node.state, node.status].filter(Boolean).join(' / ')} />
-      <Row label="status" value={statusLabel(node.color)} />
-      {node.sakutei && (
-        <Row
-          label="sakutei"
-          value={[node.sakutei.state, node.sakutei.drifted_fields?.join(', ')]
-            .filter(Boolean)
-            .join(': ')}
-        />
-      )}
-      {node.plugin && (
-        <Row
-          label="plugin"
-          value={[node.plugin.state, node.plugin.drifted_fields?.join(', ')]
-            .filter(Boolean)
-            .join(': ')}
-        />
-      )}
-    </div>
-  )
-}
-
-function LinkDetail({ link }: { link: SelectedLink }) {
-  return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 6,
-        padding: 12,
-        fontSize: 12,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-      }}
-    >
-      <div className="mono" style={{ fontWeight: 600 }}>
-        {link.source} ↔ {link.target}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="mono" style={{ fontWeight: 600, flex: 1 }}>
+          {link.source} ↔ {link.target}
+        </span>
+        {onClose && <CloseButton onClick={onClose} />}
       </div>
       <Row label="type" value={link.linkType} />
       {link.isLag && <Row label="bundle" value={`${link.members.length} links`} />}
@@ -1250,12 +1209,70 @@ function LinkDetail({ link }: { link: SelectedLink }) {
   )
 }
 
-function Row({ label, value }: { label: string; value?: string }) {
-  if (!value) return null
+/** The map-style corner control that opens the Legend on demand -- the
+ * Legend used to sit permanently in a side column, which spent space on
+ * something rarely needed; this follows the same open/close-on-outside-
+ * click/Escape pattern the header's Sources button already established
+ * (see App.tsx's SourcesButton). */
+function LegendButton({
+  open,
+  onToggle,
+  onClose,
+  roles,
+  theme,
+  linkTypes,
+  hasLag,
+}: {
+  open: boolean
+  onToggle: () => void
+  onClose: () => void
+  roles: readonly Role[]
+  theme: Theme
+  linkTypes: readonly string[]
+  hasLag: boolean
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose()
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, onClose])
+
   return (
-    <div>
-      <span style={{ color: 'var(--text-faint)' }}>{label}: </span>
-      <span>{value}</span>
+    <div ref={rootRef} style={{ position: 'absolute', top: 10, left: 10, zIndex: 5 }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mono"
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 6,
+          color: 'var(--text-muted)',
+          fontSize: 12,
+          padding: '6px 10px',
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+        }}
+      >
+        Legend
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 200 }}>
+          <Legend roles={roles} theme={theme} linkTypes={linkTypes} hasLag={hasLag} onClose={onClose} />
+        </div>
+      )}
     </div>
   )
 }

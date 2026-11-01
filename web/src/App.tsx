@@ -28,6 +28,11 @@ export default function App() {
   const [streamStatus, setStreamStatus] = useState<EventStreamStatus>('connecting')
   const [theme, setTheme] = useState<Theme>(getInitialTheme)
   const [tab, setTab] = useState<Tab>('topology')
+  // Shared across both tabs (it narrows the diagram by dimming non-matches
+  // and the Nodes table by hiding rows) rather than being local to
+  // TopologyDiagram -- the same filter text should keep applying when
+  // switching tabs, not reset.
+  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     applyTheme(theme)
@@ -136,23 +141,46 @@ export default function App() {
             padding: '10px 14px 14px',
           }}
         >
-          <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, borderBottom: '1px solid var(--border)' }}>
             <TabButton active={tab === 'topology'} onClick={() => setTab('topology')}>
               Topology
             </TabButton>
             <TabButton active={tab === 'nodes'} onClick={() => setTab('nodes')}>
               Nodes{snapshot ? ` (${snapshot.nodes.length})` : ''}
             </TabButton>
+            {/* Filtering is useful regardless of which tab is active (it
+                narrows the diagram by dimming non-matches, and narrows the
+                node table by hiding rows) -- living at the tab bar's own
+                height, at its right edge, keeps it visible and reachable
+                no matter which tab someone is on, instead of being stuck
+                inside just the Topology tab's own toolbar. */}
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="filter nodes…"
+              className="mono"
+              style={{
+                marginLeft: 'auto',
+                marginBottom: 6,
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                color: 'var(--text)',
+                fontSize: 12,
+                padding: '5px 10px',
+                width: 200,
+              }}
+            />
           </div>
           <div style={{ paddingTop: 14 }}>
             {tab === 'topology' ? (
               snapshot ? (
-                <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} theme={theme} />
+                <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} theme={theme} filter={filter} />
               ) : (
                 <Loading />
               )
             ) : snapshot ? (
-              <NodeList nodes={snapshot.nodes} />
+              <NodeList nodes={snapshot.nodes} filter={filter} />
             ) : (
               <Loading />
             )}

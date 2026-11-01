@@ -35,7 +35,14 @@ type Node struct {
 	IPv4          string `json:"ipv4,omitempty"`
 	IPv6          string `json:"ipv6,omitempty"`
 	Owner         string `json:"owner,omitempty"`
-	Group         string `json:"group,omitempty"` // only present when the source provides it (clab-api-server); empty otherwise
+	Group         string `json:"group,omitempty"` // only present when the source provides it (clab-api-server, or plugin's clab_yaml -- see clabyaml.go); empty otherwise
+	// Labels is the node's free-form containerlab `labels:` map (e.g.
+	// `role: firewall`, a plain containerlab field with no clab-view-specific
+	// schema -- see TopologyDiagram's icon selection for the one key it
+	// looks at). Only present via PluginSource's clab_yaml parsing today;
+	// clab-api-server's API does not expose it, so ClabAPIClient always
+	// leaves this nil.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // LinkEndpoint is one side of a Link.

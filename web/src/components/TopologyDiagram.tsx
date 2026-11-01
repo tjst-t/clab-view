@@ -1,9 +1,12 @@
 import cytoscape from 'cytoscape'
+import dagre from 'cytoscape-dagre'
 import type { Core, ElementDefinition, NodeSingular, StylesheetJsonBlock } from 'cytoscape'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SnapshotLink, SnapshotNode } from '../api/types'
 import { statusColorHex, statusLabel } from './colors'
 import { StatusDot } from './StatusDot'
+
+cytoscape.use(dagre)
 
 // Literal hex twins of this palette's dark-surface tokens (see
 // statusColorHex's doc comment for why Cytoscape needs literals, not
@@ -25,7 +28,49 @@ const PLUGIN_BADGE = `data:image/svg+xml,${encodeURIComponent(
     `</svg>`,
 )}`
 
+// Device role, used only to pick the node's shape -- a visual hint drawn
+// from the same place network diagrams conventionally put it (shape =
+// function, color = status; see the diagram's Legend). Derived from
+// containerlab's own `labels.role` when the topology sets it, and
+// otherwise guessed from `kind`/`image` so a topology that hasn't bothered
+// with `labels` still gets reasonable shapes. "unknown" is a legitimate,
+// common result (most containerlab kinds say nothing about function) and
+// renders identically to "switch" -- it is not treated as an error.
+type Role = 'switch' | 'router' | 'firewall' | 'server' | 'unknown'
+
+const ROLE_ALIASES: Record<string, Role> = {
+  switch: 'switch',
+  router: 'router',
+  firewall: 'firewall',
+  server: 'server',
+  host: 'server',
+}
+
+function inferRole(n: SnapshotNode): Role {
+  const explicit = n.labels?.role?.toLowerCase()
+  if (explicit && explicit in ROLE_ALIASES) return ROLE_ALIASES[explicit]
+  const hay = `${n.kind ?? ''} ${n.image ?? ''}`.toLowerCase()
+  if (/firewall|\bfw\b/.test(hay)) return 'firewall'
+  if (/srl|ceos|eos|nxos|\bios\b|junos|\bvr-|router|switch/.test(hay)) return 'switch'
+  if (/linux|alpine|ubuntu|debian|host|server/.test(hay)) return 'server'
+  return 'unknown'
+}
+
+const ROLE_SHAPE: Record<Role, string> = {
+  switch: 'round-rectangle',
+  router: 'hexagon',
+  firewall: 'diamond',
+  server: 'rectangle',
+  unknown: 'round-rectangle',
+}
+
+// Shapes without a flat top/bottom edge (diamond, hexagon) swallow a label
+// drawn through their own center, so those roles get a fixed small glyph
+// size with the label placed underneath instead of a label-sized box.
+const COMPACT_ROLES = new Set<Role>(['router', 'firewall'])
+
 function nodeElement(n: SnapshotNode): ElementDefinition {
+  const role = inferRole(n)
   return {
     group: 'nodes',
     data: {
@@ -36,6 +81,8 @@ function nodeElement(n: SnapshotNode): ElementDefinition {
       hasPlugin: Boolean(n.plugin),
       kind: n.kind ?? '',
       state: n.state ?? '',
+      role,
+      compact: COMPACT_ROLES.has(role),
     },
   }
 }
@@ -51,14 +98,32 @@ function linkId(l: SnapshotLink, i: number): string {
   return `link-${i}`
 }
 
-function linkElement(l: SnapshotLink, i: number): ElementDefinition | null {
+// Orients the link for the layout engine only (source = the lower-tier /
+// hub-ward endpoint): dagre ranks nodes from a directed graph, and the
+// diagram's layering is computed independently in internal/aggregate's
+// layout.go, not by dagre itself. The visual style never draws an
+// arrowhead, so this directionality is invisible -- containerlab links
+// have no inherent direction. Equal-tier endpoints (e.g. two hubs linked
+// to each other) are ordered by name só the choice is deterministic.
+function linkElement(
+  l: SnapshotLink,
+  i: number,
+  tierOf: Map<string, number>,
+): ElementDefinition | null {
   if (!l.a.node || !l.b.node) return null
+  const tierA = tierOf.get(l.a.node) ?? 0
+  const tierB = tierOf.get(l.b.node) ?? 0
+  const [source, target] =
+    tierA < tierB || (tierA === tierB && l.a.node <= l.b.node)
+      ? [l.a.node, l.b.node]
+      : [l.b.node, l.a.node]
   return {
     group: 'edges',
     data: {
       id: linkId(l, i),
-      source: l.a.node,
-      target: l.b.node,
+      source,
+      target,
+      tierDelta: Math.abs(tierA - tierB),
       label: [l.a.interface, l.b.interface].filter(Boolean).join(' ↔ '),
     },
   }
@@ -68,7 +133,7 @@ const STYLE: StylesheetJsonBlock[] = [
   {
     selector: 'node',
     style: {
-      shape: 'round-rectangle',
+      shape: 'data(shape)' as unknown as cytoscape.Css.NodeShape,
       width: 'label',
       height: 34,
       padding: '10px',
@@ -81,6 +146,16 @@ const STYLE: StylesheetJsonBlock[] = [
       'font-size': 12,
       'text-valign': 'center',
       'text-halign': 'center',
+    },
+  },
+  {
+    selector: 'node[?compact]',
+    style: {
+      width: 30,
+      height: 30,
+      padding: '0px',
+      'text-valign': 'bottom',
+      'text-margin-y': 6,
     },
   },
   {
@@ -100,6 +175,16 @@ const STYLE: StylesheetJsonBlock[] = [
     },
   },
   {
+    selector: 'node[?compact][?hasPlugin]',
+    style: {
+      'padding-right': '0px',
+      'background-offset-x': 0,
+      'background-offset-y': 0,
+      'background-position-x': '100%',
+      'background-position-y': '0%',
+    },
+  },
+  {
     selector: 'node:selected',
     style: {
       'border-width': 4,
@@ -109,11 +194,20 @@ const STYLE: StylesheetJsonBlock[] = [
     },
   },
   {
+    selector: 'node.dimmed',
+    style: { opacity: 0.2 },
+  },
+  {
     selector: 'edge',
     style: {
+      // Straight lines over curved/orthogonal ones: per 「ネットワーク図の描き方入門」
+      // (ch. 4 on link rendering), curved or bent links make a fan-out pattern
+      // harder to trace back to its source than straight lines do, even though
+      // straight lines cross more often -- the crossings themselves are easier
+      // to read through than a bend is.
       width: 1.5,
       'line-color': BORDER,
-      'curve-style': 'bezier',
+      'curve-style': 'straight',
       'target-arrow-shape': 'none',
       label: 'data(label)',
       'font-size': 9,
@@ -124,6 +218,10 @@ const STYLE: StylesheetJsonBlock[] = [
       'text-background-padding': '2px',
     },
   },
+  {
+    selector: 'edge.dimmed',
+    style: { opacity: 0.08 },
+  },
 ]
 
 interface Props {
@@ -132,10 +230,13 @@ interface Props {
 }
 
 /**
- * The topology diagram: containerlab's nodes and links, rendered
- * with Cytoscape.js, node borders colored by the same ok/drift/down
- * vocabulary as the rest of the app (see colors.ts), and a small corner
- * badge on nodes the device plugin also reports on.
+ * The topology diagram: containerlab's nodes and links, rendered with
+ * Cytoscape.js in a hierarchical layering driven by the backend's computed
+ * `tier` (internal/aggregate/layout.go), node shape hinting function
+ * (switch/router/firewall/server, from `labels.role` or a `kind` guess),
+ * node borders colored by the same ok/drift/down vocabulary as the rest of
+ * the app (see colors.ts), and a small corner badge on nodes the device
+ * plugin also reports on.
  *
  * Keeps one persistent cytoscape.Core across snapshot updates (does not
  * tear down and recreate it on every poll): node/edge data is patched
@@ -147,6 +248,12 @@ export function TopologyDiagram({ nodes, links }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const cyRef = useRef<Core | null>(null)
   const [selected, setSelected] = useState<SnapshotNode | null>(null)
+  const [filter, setFilter] = useState('')
+
+  const roles = useMemo(() => {
+    const present = new Set((nodes ?? []).map(inferRole))
+    return (['switch', 'router', 'firewall', 'server'] as const).filter((r) => present.has(r))
+  }, [nodes])
 
   // Create the cytoscape instance once.
   useEffect(() => {
@@ -205,6 +312,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
     const cy = cyRef.current
     if (!cy) return
 
+    const tierOf = new Map((nodes ?? []).map((n) => [n.name, n.tier]))
     const wantNodes = new Map((nodes ?? []).map((n) => [n.name, n]))
     const wantEdges = new Map(
       (links ?? [])
@@ -231,6 +339,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
 
       // Add/update nodes.
       for (const [id, n] of wantNodes) {
+        const role = inferRole(n)
         const existing = cy.getElementById(id)
         if (existing.nonempty()) {
           existing.data({
@@ -239,9 +348,14 @@ export function TopologyDiagram({ nodes, links }: Props) {
             hasPlugin: Boolean(n.plugin),
             kind: n.kind ?? '',
             state: n.state ?? '',
+            role,
+            compact: COMPACT_ROLES.has(role),
+            shape: ROLE_SHAPE[role],
           })
         } else {
-          cy.add(nodeElement(n))
+          const el = nodeElement(n)
+          el.data.shape = ROLE_SHAPE[role]
+          cy.add(el)
           structureChanged = true
         }
       }
@@ -250,7 +364,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
       // same add-if-missing shape as nodes for consistency).
       for (const [id, l] of wantEdges) {
         if (cy.getElementById(id).empty()) {
-          const el = linkElement(l, 0)
+          const el = linkElement(l, 0, tierOf)
           if (el) {
             el.data.id = id
             cy.add(el)
@@ -262,39 +376,82 @@ export function TopologyDiagram({ nodes, links }: Props) {
 
     if (structureChanged) {
       cy.layout({
-        name: 'cose',
+        name: 'dagre',
         animate: false,
         fit: true,
         padding: 40,
-        nodeRepulsion: () => 12000,
-        idealEdgeLength: () => 120,
-      }).run()
+        rankDir: 'TB',
+        nodeSep: 36,
+        rankSep: 70,
+        align: 'UL',
+        nodeDimensionsIncludeLabels: true,
+        minLen: (edge: cytoscape.EdgeSingular) => (edge.data('tierDelta') as number) || 0,
+      } as cytoscape.LayoutOptions).run()
     }
   }, [nodes, links])
 
+  // Dim nodes/edges that don't match the filter text, instead of removing
+  // them -- keeps the layout stable while narrowing attention.
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy) return
+    const q = filter.trim().toLowerCase()
+    cy.batch(() => {
+      if (!q) {
+        cy.elements().removeClass('dimmed')
+        return
+      }
+      cy.nodes().forEach((n) => {
+        const hay = `${n.id()} ${n.data('kind') ?? ''} ${n.data('role') ?? ''}`.toLowerCase()
+        n.toggleClass('dimmed', !hay.includes(q))
+      })
+      cy.edges().forEach((e) => {
+        const dim = e.source().hasClass('dimmed') || e.target().hasClass('dimmed')
+        e.toggleClass('dimmed', dim)
+      })
+    })
+  }, [filter, nodes, links])
+
   return (
-    <div style={{ display: 'flex', gap: 16 }}>
-      <div
-        ref={containerRef}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="filter nodes…"
+        className="mono"
         style={{
-          flex: 1,
-          height: 420,
           background: 'var(--bg)',
           border: '1px solid var(--border)',
           borderRadius: 6,
+          color: 'var(--text)',
+          fontSize: 12,
+          padding: '6px 10px',
+          width: 220,
         }}
       />
-      <div
-        style={{
-          width: 220,
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        <Legend />
-        {selected ? <NodeDetail node={selected} /> : null}
+      <div style={{ display: 'flex', gap: 16 }}>
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            height: 420,
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+          }}
+        />
+        <div
+          style={{
+            width: 220,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <Legend roles={roles} />
+          {selected ? <NodeDetail node={selected} /> : null}
+        </div>
       </div>
     </div>
   )
@@ -302,7 +459,15 @@ export function TopologyDiagram({ nodes, links }: Props) {
 
 const LEGEND_COLORS = ['ok', 'drift', 'down', 'workflow', 'unknown'] as const
 
-function Legend() {
+const ROLE_LABEL: Record<Role, string> = {
+  switch: 'switch',
+  router: 'router',
+  firewall: 'firewall',
+  server: 'server',
+  unknown: 'unknown',
+}
+
+function Legend({ roles }: { roles: readonly Role[] }) {
   return (
     <div
       style={{
@@ -321,6 +486,25 @@ function Legend() {
           <span style={{ color: 'var(--text-muted)' }}>{statusLabel(c)}</span>
         </div>
       ))}
+      {roles.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            marginTop: 4,
+            paddingTop: 6,
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          {roles.map((r) => (
+            <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ShapeGlyph shape={ROLE_SHAPE[r]} />
+              <span style={{ color: 'var(--text-muted)' }}>{ROLE_LABEL[r]}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
         <span
           className="mono"
@@ -336,6 +520,35 @@ function Legend() {
       </div>
     </div>
   )
+}
+
+const SHAPE_BORDER_RADIUS: Record<string, number> = {
+  'round-rectangle': 3,
+  rectangle: 0,
+}
+
+function ShapeGlyph({ shape }: { shape: string }) {
+  const base = {
+    display: 'inline-block',
+    width: 10,
+    height: 10,
+    border: '1.5px solid var(--text-muted)',
+    flexShrink: 0,
+  } as const
+  if (shape === 'diamond') {
+    return <span style={{ ...base, transform: 'rotate(45deg)' }} />
+  }
+  if (shape === 'hexagon') {
+    return (
+      <span
+        style={{
+          ...base,
+          clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
+        }}
+      />
+    )
+  }
+  return <span style={{ ...base, borderRadius: SHAPE_BORDER_RADIUS[shape] ?? 2 }} />
 }
 
 function NodeDetail({ node }: { node: SnapshotNode }) {

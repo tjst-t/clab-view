@@ -88,9 +88,6 @@ export default function App() {
         >
           clab-view
         </h1>
-        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-          containerlab + Sakutei, one read-only view
-        </span>
         {snapshot && (
           <span
             className="mono"

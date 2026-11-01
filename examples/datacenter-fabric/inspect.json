@@ -1,0 +1,20 @@
+{
+  "fabric-demo": [
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-spine1", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.2/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-spine2", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.3/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-leaf1", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.4/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-leaf2", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.5/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-leaf3", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.6/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-leaf4", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.7/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-edge-fw1", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.8/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-edge-fw2", "kind": "linux", "image": "ghcr.io/srl-labs/network-multitool:latest", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.9/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute1", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.10/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute2", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.11/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute3", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.12/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute4", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.13/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute5", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.14/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute6", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.15/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute7", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.16/24", "owner": "" },
+    { "lab_name": "fabric-demo", "name": "clab-fabric-demo-compute8", "kind": "linux", "image": "alpine:3", "state": "running", "status": "Up 5 minutes", "ipv4_address": "172.30.40.17/24", "owner": "" }
+  ]
+}

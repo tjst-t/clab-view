@@ -37,6 +37,10 @@ func (s *PluginSource) Topology(ctx context.Context) (Topology, error) {
 	if err != nil {
 		return Topology{}, fmt.Errorf("parsing plugin topology clab_yaml: %w", err)
 	}
+	nodeMeta, err := parseClabYAMLNodeMeta(t.ClabYAML)
+	if err != nil {
+		return Topology{}, fmt.Errorf("parsing plugin topology clab_yaml node metadata: %w", err)
+	}
 	nodes, err := decodeInspectJSON(t.Inspect)
 	if err != nil {
 		return Topology{}, fmt.Errorf("decoding plugin topology inspect JSON: %w", err)
@@ -52,6 +56,23 @@ func (s *PluginSource) Topology(ctx context.Context) (Topology, error) {
 				nodes[i].Name = shortNodeName(nodes[i].ContainerName, yamlLabName)
 			}
 		}
+	}
+	// Merge clab_yaml's group/labels onto each node, by topology node name --
+	// done after the lab-name fallback above so Name is always its final,
+	// resolved value by the time it is used as the lookup key. inspect never
+	// carries group/labels at all (see rawContainerInfo's doc comment);
+	// clab_yaml's topology.nodes section is the only place this path can get
+	// them from. Group is only filled in when inspect didn't already have
+	// one (it never does today, but a future inspect shape might).
+	for i := range nodes {
+		m, ok := nodeMeta[nodes[i].Name]
+		if !ok {
+			continue
+		}
+		if nodes[i].Group == "" {
+			nodes[i].Group = m.Group
+		}
+		nodes[i].Labels = m.Labels
 	}
 	return Topology{Nodes: nodes, Links: links}, nil
 }

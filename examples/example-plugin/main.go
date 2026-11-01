@@ -11,6 +11,19 @@
 // Optionally require a bearer token from callers:
 //
 //	PLUGIN_TOKEN=secret go run ./examples/example-plugin
+//
+// Optionally serve GET /plugin/topology (the plugin's containerlab
+// passthrough -- see docs/plugin-contract.md) from two files on disk,
+// useful for exercising clab-view's CONTAINERLAB_SOURCE=plugin path
+// against an arbitrary sample topology without a running
+// clab-api-server:
+//
+//	CLAB_YAML_FILE=topology.clab.yml INSPECT_JSON_FILE=inspect.json \
+//	  go run ./examples/example-plugin
+//
+// Both must be set for the endpoint to be registered at all (and
+// advertised in GET /plugin's capabilities) -- this keeps the default,
+// no-env-vars behavior exactly as it was before this option existed.
 package main
 
 import (
@@ -61,6 +74,13 @@ type event struct {
 type server struct {
 	token string
 
+	// clabYAML/inspectJSON back GET /plugin/topology when both are
+	// non-empty (see CLAB_YAML_FILE/INSPECT_JSON_FILE in the package doc
+	// comment). inspectJSON is kept pre-serialized (read straight off disk)
+	// since it is passed through to the client as raw JSON either way.
+	clabYAML    string
+	inspectJSON json.RawMessage
+
 	mu        sync.Mutex
 	resources map[string]*resource
 	runs      map[string]*run
@@ -72,9 +92,11 @@ type server struct {
 	subsMu    sync.Mutex
 }
 
-func newServer(token string) *server {
+func newServer(token, clabYAML string, inspectJSON json.RawMessage) *server {
 	s := &server{
-		token: token,
+		token:       token,
+		clabYAML:    clabYAML,
+		inspectJSON: inspectJSON,
 		resources: map[string]*resource{
 			"demo-storage-01": {
 				ID:     "demo-storage-01",
@@ -111,10 +133,34 @@ func (s *server) handlePlugin(w http.ResponseWriter, r *http.Request) {
 	if !s.checkAuth(w, r) {
 		return
 	}
+	capabilities := []string{"status", "scripts", "events"}
+	if s.hasTopology() {
+		capabilities = append([]string{"topology"}, capabilities...)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":      contractVersion,
 		"name":         "example-plugin",
-		"capabilities": []string{"status", "scripts", "events"},
+		"capabilities": capabilities,
+	})
+}
+
+// hasTopology reports whether this plugin was configured (via
+// CLAB_YAML_FILE/INSPECT_JSON_FILE) to serve GET /plugin/topology at all.
+func (s *server) hasTopology() bool {
+	return s.clabYAML != "" && len(s.inspectJSON) > 0
+}
+
+func (s *server) handleTopology(w http.ResponseWriter, r *http.Request) {
+	if !s.checkAuth(w, r) {
+		return
+	}
+	if !s.hasTopology() {
+		http.NotFound(w, r)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"inspect":   s.inspectJSON,
+		"clab_yaml": s.clabYAML,
 	})
 }
 
@@ -346,21 +392,55 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 // --- main ------------------------------------------------------------------
 
+// loadTopologyFiles reads CLAB_YAML_FILE/INSPECT_JSON_FILE if both are set,
+// returning ("", nil, nil) if either is unset (topology serving stays off,
+// matching behavior from before this option existed) or an error if a
+// file is set but unreadable.
+func loadTopologyFiles() (clabYAML string, inspectJSON json.RawMessage, err error) {
+	yamlPath := os.Getenv("CLAB_YAML_FILE")
+	jsonPath := os.Getenv("INSPECT_JSON_FILE")
+	if yamlPath == "" || jsonPath == "" {
+		return "", nil, nil
+	}
+	yamlBytes, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("reading CLAB_YAML_FILE: %w", err)
+	}
+	jsonBytes, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("reading INSPECT_JSON_FILE: %w", err)
+	}
+	if !json.Valid(jsonBytes) {
+		return "", nil, fmt.Errorf("INSPECT_JSON_FILE (%s) is not valid JSON", jsonPath)
+	}
+	return string(yamlBytes), json.RawMessage(jsonBytes), nil
+}
+
 func main() {
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:8081"
 	}
-	s := newServer(os.Getenv("PLUGIN_TOKEN"))
+	clabYAML, inspectJSON, err := loadTopologyFiles()
+	if err != nil {
+		log.Fatal(err)
+	}
+	s := newServer(os.Getenv("PLUGIN_TOKEN"), clabYAML, inspectJSON)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /plugin", s.handlePlugin)
+	if s.hasTopology() {
+		mux.HandleFunc("GET /plugin/topology", s.handleTopology)
+	}
 	mux.HandleFunc("GET /plugin/status", s.handleStatus)
 	mux.HandleFunc("GET /plugin/scripts", s.handleScripts)
 	mux.HandleFunc("POST /plugin/scripts/{id}/actions/{action}", s.handleRunAction)
 	mux.HandleFunc("GET /plugin/runs/{run_id}", s.handleRunStatus)
 	mux.HandleFunc("GET /plugin/events", s.handleEvents)
 
+	if s.hasTopology() {
+		log.Printf("serving GET /plugin/topology from %s / %s", os.Getenv("CLAB_YAML_FILE"), os.Getenv("INSPECT_JSON_FILE"))
+	}
 	log.Printf("example-plugin (contract v%s) listening on %s", contractVersion, addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

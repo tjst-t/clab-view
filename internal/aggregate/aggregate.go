@@ -143,6 +143,12 @@ type PluginOverlay struct {
 // matched to it.
 type Node struct {
 	containerlab.Node
+	// Tier is this node's computed vertical layer in the topology diagram
+	// (0 = topmost/hub), from computeTiers -- derived purely from the link
+	// graph's structure, never from a declared field (e.g. group/labels).
+	// Always present (0 is a legitimate tier, not "absent"), so no
+	// omitempty.
+	Tier    int             `json:"tier"`
 	Sakutei *SakuteiOverlay `json:"sakutei,omitempty"`
 	Plugin  *PluginOverlay  `json:"plugin,omitempty"`
 }
@@ -659,10 +665,12 @@ func (a *Aggregator) Snapshot(ctx context.Context) (Snapshot, error) {
 	a.recordSakuteiHealth(statusErr, planErr, graphErr)
 	pluginStatus := a.fetchPluginStatus(ctx)
 
+	tiers := computeTiers(topo.Nodes, topo.Links)
+
 	nodes := make([]Node, len(topo.Nodes))
 	byName := make(map[string]int, len(topo.Nodes))
 	for i, n := range topo.Nodes {
-		nodes[i] = Node{Node: n}
+		nodes[i] = Node{Node: n, Tier: tiers[n.Name]}
 		byName[n.Name] = i
 	}
 

@@ -1,0 +1,169 @@
+# A generic two-tier leaf/spine fabric with an edge-firewall pair and
+# compute hosts, used as clab-view's own sample for the topology diagram
+# (web/src/components/TopologyDiagram.tsx): a topology with enough real
+# structure (20 links, uneven fan-out, no node pre-positioned by hand) to
+# exercise the diagram's automatic layering and link routing honestly,
+# without any name or address borrowed from a real deployment.
+#
+# Shape:
+#   spine1, spine2      -- group "spine",  each linked to all 4 leaves and
+#                           both firewalls (full mesh on both sides)
+#   leaf1..leaf4         -- group "leaf",   each linked to both spines and
+#                           2 compute hosts
+#   edge-fw1, edge-fw2    -- group "edge",   each linked to both spines
+#                           (stands in for the fabric's uplink to a wider
+#                           network, which this topology does not include)
+#   compute1..compute8    -- group "compute", each linked to exactly one leaf
+#
+# `group` and `labels.role` are plain containerlab node metadata (no
+# clab-view-specific schema): group clusters nodes that share a function,
+# role hints which icon to draw. Neither is required -- a topology with
+# neither still renders, just without that extra hinting (see
+# internal/aggregate/layout.go's tiering, which falls back to pure link
+# structure when group is absent).
+#
+# To deploy for real (containerlab + Docker, no KVM needed -- every node
+# here is a plain container):
+#
+#   containerlab deploy -t examples/datacenter-fabric/topology.clab.yml
+#
+name: fabric-demo
+
+mgmt:
+  network: fabric-demo
+  ipv4-subnet: 172.30.40.0/24
+
+topology:
+  nodes:
+    spine1:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: spine
+      labels:
+        role: switch
+    spine2:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: spine
+      labels:
+        role: switch
+
+    leaf1:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: leaf
+      labels:
+        role: switch
+    leaf2:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: leaf
+      labels:
+        role: switch
+    leaf3:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: leaf
+      labels:
+        role: switch
+    leaf4:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: leaf
+      labels:
+        role: switch
+
+    edge-fw1:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: edge
+      labels:
+        role: firewall
+    edge-fw2:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool:latest
+      group: edge
+      labels:
+        role: firewall
+
+    compute1:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute2:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute3:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute4:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute5:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute6:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute7:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+    compute8:
+      kind: linux
+      image: alpine:3
+      group: compute
+      labels:
+        role: server
+      cmd: sleep infinity
+
+  links:
+    # spine <-> leaf, full mesh
+    - endpoints: ["spine1:eth1", "leaf1:eth1"]
+    - endpoints: ["spine1:eth2", "leaf2:eth1"]
+    - endpoints: ["spine1:eth3", "leaf3:eth1"]
+    - endpoints: ["spine1:eth4", "leaf4:eth1"]
+    - endpoints: ["spine2:eth1", "leaf1:eth2"]
+    - endpoints: ["spine2:eth2", "leaf2:eth2"]
+    - endpoints: ["spine2:eth3", "leaf3:eth2"]
+    - endpoints: ["spine2:eth4", "leaf4:eth2"]
+    # spine <-> edge firewall, full mesh
+    - endpoints: ["spine1:eth5", "edge-fw1:eth1"]
+    - endpoints: ["spine1:eth6", "edge-fw2:eth1"]
+    - endpoints: ["spine2:eth5", "edge-fw1:eth2"]
+    - endpoints: ["spine2:eth6", "edge-fw2:eth2"]
+    # leaf <-> compute, two hosts per leaf
+    - endpoints: ["leaf1:eth3", "compute1:eth1"]
+    - endpoints: ["leaf1:eth4", "compute2:eth1"]
+    - endpoints: ["leaf2:eth3", "compute3:eth1"]
+    - endpoints: ["leaf2:eth4", "compute4:eth1"]
+    - endpoints: ["leaf3:eth3", "compute5:eth1"]
+    - endpoints: ["leaf3:eth4", "compute6:eth1"]
+    - endpoints: ["leaf4:eth3", "compute7:eth1"]
+    - endpoints: ["leaf4:eth4", "compute8:eth1"]

@@ -20,6 +20,14 @@ import (
 type clabYAMLDoc struct {
 	Name     string `yaml:"name"`
 	Topology struct {
+		// Nodes carries each node's group/labels metadata (see
+		// parseClabYAMLNodeMeta) -- plain containerlab fields, decoded here
+		// alongside Links rather than in a separate struct, since both come
+		// from the same topology.* section of the same document.
+		Nodes map[string]struct {
+			Group  string            `yaml:"group"`
+			Labels map[string]string `yaml:"labels"`
+		} `yaml:"nodes"`
 		Links []struct {
 			// Type is containerlab's extended link-format discriminator
 			// ("veth", "macvlan", "mgmt-net", "host", "dummy", "vxlan",
@@ -68,6 +76,36 @@ func parseClabYAMLLinks(data string) (labName string, links []Link, err error) {
 		links = append(links, Link{Type: linkType, A: a, B: b})
 	}
 	return doc.Name, links, nil
+}
+
+// nodeMeta is one node's group/labels, as declared in a .clab.yml's
+// topology.nodes section.
+type nodeMeta struct {
+	Group  string
+	Labels map[string]string
+}
+
+// parseClabYAMLNodeMeta parses a .clab.yml file's topology.nodes section
+// into a map keyed by node name, carrying each node's group and labels --
+// plain containerlab fields (github.com/srl-labs/containerlab's own node
+// schema), not anything clab-view invents. A node with neither set is still
+// present in the map (with a zero nodeMeta), so callers can distinguish "no
+// metadata for this node" (key absent -- data didn't parse, or this node
+// name isn't in the YAML at all) from "metadata present but empty". data
+// being empty returns (nil, nil), same convention as parseClabYAMLLinks.
+func parseClabYAMLNodeMeta(data string) (map[string]nodeMeta, error) {
+	if strings.TrimSpace(data) == "" {
+		return nil, nil
+	}
+	var doc clabYAMLDoc
+	if err := yaml.Unmarshal([]byte(data), &doc); err != nil {
+		return nil, fmt.Errorf("parsing clab_yaml: %w", err)
+	}
+	out := make(map[string]nodeMeta, len(doc.Topology.Nodes))
+	for name, n := range doc.Topology.Nodes {
+		out[name] = nodeMeta{Group: n.Group, Labels: n.Labels}
+	}
+	return out, nil
 }
 
 // splitLinkEndpoint parses one "<node>:<interface>" endpoint string.

@@ -53,6 +53,16 @@ export interface SnapshotNode {
   ipv6?: string
   owner?: string
   group?: string
+  /** containerlab.Node.Labels, a free-form `labels:` map. Only populated
+   * when the backend's containerlab source is "plugin" (see
+   * internal/source/containerlab's doc comments) -- "clab-api" never
+   * sends this. */
+  labels?: Record<string, string>
+  /** aggregate.Node.Tier: the node's computed vertical layer in the
+   * topology diagram (0 = topmost/hub), from pure link-graph structure --
+   * see internal/aggregate/layout.go. Always present (0 is a legitimate
+   * tier, not "absent"). */
+  tier: number
   sakutei?: SakuteiOverlay
   plugin?: PluginOverlay
   color: NodeColor

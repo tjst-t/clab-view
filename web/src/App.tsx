@@ -10,6 +10,7 @@ import { SakuteiSummaryPanel } from './components/SakuteiSummaryPanel'
 import { SourceHealthPanel } from './components/SourceHealthPanel'
 import { StatusDot } from './components/StatusDot'
 import { TopologyDiagram } from './components/TopologyDiagram'
+import { applyTheme, getInitialTheme, type Theme } from './theme'
 
 // How often to re-fetch GET /api/snapshot in the background. Page (1)'s
 // scope is a working read-only poll + SSE loop; a push-driven snapshot
@@ -24,6 +25,11 @@ export default function App() {
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [events, setEvents] = useState<LiveEvent[]>([])
   const [streamStatus, setStreamStatus] = useState<EventStreamStatus>('connecting')
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+
+  useEffect(() => {
+    applyTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     let cancelled = false
@@ -89,13 +95,27 @@ export default function App() {
           clab-view
         </h1>
         {snapshot && (
-          <span
-            className="mono"
-            style={{ marginLeft: 'auto', color: 'var(--text-faint)', fontSize: 12 }}
-          >
+          <span className="mono" style={{ marginLeft: 'auto', color: 'var(--text-faint)', fontSize: 12 }}>
             generated {new Date(snapshot.generated_at).toLocaleTimeString()}
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          className="mono"
+          style={{
+            marginLeft: snapshot ? 16 : 'auto',
+            background: 'var(--surface-raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            padding: '5px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          {theme === 'dark' ? 'light theme' : 'dark theme'}
+        </button>
       </header>
 
       {snapshotError && (
@@ -132,7 +152,7 @@ export default function App() {
           <section>
             <h2 style={sectionTitle}>Topology</h2>
             {snapshot ? (
-              <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} />
+              <TopologyDiagram nodes={snapshot.nodes} links={snapshot.links} theme={theme} />
             ) : (
               <Loading />
             )}

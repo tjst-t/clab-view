@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme='dark'] {
   color-scheme: dark;
 
   /* ---- palette -----------------------------------------------------
@@ -7,20 +8,29 @@
    * terminal. Status colors are not decoration — they are the same
    * ok/drift/down vocabulary the backend's aggregate.Color type uses,
    * so the palette *is* the legend.
+   *
+   * Every muted/faint/border tone below sits well clear of the pure-black
+   * end of the scale on purpose: a token that reads as "subtle" on a
+   * calibrated reference monitor can disappear entirely on a brighter or
+   * glare-lit display, which is what happened with this palette's first
+   * pass (--border and --text-faint sat close enough to --bg that the
+   * topology diagram's connecting lines and labels were effectively
+   * invisible). These values were widened for a safer contrast margin,
+   * not just a cosmetic retouch.
    */
   --bg: #0d1013;
-  --surface: #151a1e;
-  --surface-raised: #1b2227;
-  --border: #262f35;
-  --text: #e4e9ec;
-  --text-muted: #8b969d;
-  --text-faint: #5a656b;
+  --surface: #171c21;
+  --surface-raised: #202830;
+  --border: #3a4650;
+  --text: #f0f3f5;
+  --text-muted: #aab6be;
+  --text-faint: #7d8a93;
 
-  --status-ok: #39d98a;
-  --status-drift: #e3b341;
-  --status-down: #e5534b;
-  --status-progress: #4fa3e3;
-  --status-neutral: #6c7881;
+  --status-ok: #3ddb8f;
+  --status-drift: #eec25a;
+  --status-down: #f25e55;
+  --status-progress: #5fb0ea;
+  --status-neutral: #9aa7b0;
 
   /* The one brand/structural accent, deliberately not reused from the
    * status vocabulary above: those five colors mean "state", this one
@@ -33,6 +43,33 @@
   --font-ui: -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', 'SFMono-Regular', 'Roboto Mono',
     Consolas, monospace;
+}
+
+/* The light theme: the same five-color status vocabulary and the same
+ * structural roles (bg/surface/surface-raised/border/text tiers), just
+ * re-lit for a bright room instead of a dark one. Every status hue is
+ * darkened, not just inverted, so each one still clears a readable
+ * contrast ratio against a near-white surface instead of washing out the
+ * way a saturated dark-theme green or amber would on a light background.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f5f6f7;
+  --surface: #ffffff;
+  --surface-raised: #eef1f3;
+  --border: #c3cad0;
+  --text: #14181b;
+  --text-muted: #45515a;
+  --text-faint: #5c6870;
+
+  --status-ok: #1f7a4c;
+  --status-drift: #8a5b00;
+  --status-down: #b3261e;
+  --status-progress: #1a5a9e;
+  --status-neutral: #525f69;
+
+  --accent: #0d7d78;
 }
 
 * {

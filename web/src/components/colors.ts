@@ -1,4 +1,26 @@
 import type { NodeColor } from '../api/types'
+import type { Theme } from '../theme'
+
+type StatusKey = 'ok' | 'drift' | 'down' | 'workflow' | 'neutral'
+
+function statusKey(color: NodeColor): StatusKey {
+  switch (color) {
+    case 'ok':
+      return 'ok'
+    case 'drift':
+      return 'drift'
+    case 'down':
+    case 'apply_failed':
+      return 'down'
+    case 'workflow':
+      return 'workflow'
+    case 'unobservable':
+    case 'unmanaged':
+    case 'unknown':
+    default:
+      return 'neutral'
+  }
+}
 
 /**
  * Maps the backend's Color vocabulary to this palette's status colors and
@@ -6,22 +28,35 @@ import type { NodeColor } from '../api/types'
  * topology diagram, the DAG later) reads a node's state the same way.
  */
 export function statusColor(color: NodeColor): string {
-  switch (color) {
+  switch (statusKey(color)) {
     case 'ok':
       return 'var(--status-ok)'
     case 'drift':
       return 'var(--status-drift)'
     case 'down':
-    case 'apply_failed':
       return 'var(--status-down)'
     case 'workflow':
       return 'var(--status-progress)'
-    case 'unobservable':
-    case 'unmanaged':
-    case 'unknown':
     default:
       return 'var(--status-neutral)'
   }
+}
+
+const STATUS_HEX: Record<Theme, Record<StatusKey, string>> = {
+  dark: {
+    ok: '#3ddb8f',
+    drift: '#eec25a',
+    down: '#f25e55',
+    workflow: '#5fb0ea',
+    neutral: '#9aa7b0',
+  },
+  light: {
+    ok: '#1f7a4c',
+    drift: '#8a5b00',
+    down: '#b3261e',
+    workflow: '#1a5a9e',
+    neutral: '#525f69',
+  },
 }
 
 /**
@@ -29,26 +64,15 @@ export function statusColor(color: NodeColor): string {
  * custom-property reference. Cytoscape.js renders to a canvas element and
  * evaluates its own style sheet independently of the page's CSS engine, so
  * `var(--status-ok)` is not a color it can resolve — it needs the literal
- * value. Kept in sync with the --status-* tokens in index.css by hand;
- * there are only five of them.
+ * value. Takes a theme because the two palettes need different lightness
+ * for the same status to stay readable against their own background (a
+ * light-theme green has to be considerably darker than a dark-theme green
+ * to clear the same contrast bar against a light surface). Kept in sync
+ * with the --status-* tokens in index.css by hand; there are only five of
+ * each.
  */
-export function statusColorHex(color: NodeColor): string {
-  switch (color) {
-    case 'ok':
-      return '#39d98a'
-    case 'drift':
-      return '#e3b341'
-    case 'down':
-    case 'apply_failed':
-      return '#e5534b'
-    case 'workflow':
-      return '#4fa3e3'
-    case 'unobservable':
-    case 'unmanaged':
-    case 'unknown':
-    default:
-      return '#6c7881'
-  }
+export function statusColorHex(color: NodeColor, theme: Theme = 'dark'): string {
+  return STATUS_HEX[theme][statusKey(color)]
 }
 
 /**

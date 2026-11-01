@@ -3,30 +3,50 @@ import dagre from 'cytoscape-dagre'
 import type { Core, ElementDefinition, NodeSingular, StylesheetJsonBlock } from 'cytoscape'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SnapshotLink, SnapshotNode } from '../api/types'
+import type { Theme } from '../theme'
 import { statusColorHex, statusLabel } from './colors'
 import { StatusDot } from './StatusDot'
 
 cytoscape.use(dagre)
 
-// Literal hex twins of this palette's dark-surface tokens (see
-// statusColorHex's doc comment for why Cytoscape needs literals, not
-// var(--x) references).
-const SURFACE_RAISED = '#1b2227'
-const BORDER = '#262f35'
-const TEXT = '#e4e9ec'
-const TEXT_FAINT = '#5a656b'
+// Literal hex twins of this palette's --bg/--surface-raised/--border/--text
+// tokens (see statusColorHex's doc comment for why Cytoscape needs
+// literals, not var(--x) references): Cytoscape renders to its own canvas
+// and never sees the page's CSS custom properties. Kept distinct per theme
+// for the same reason colors.ts's STATUS_HEX is -- a tone tuned to read as
+// "subtle structure" against a near-black canvas can be nearly invisible
+// against a near-black canvas's lighter cousin, and vice versa for light.
+const THEME_HEX: Record<Theme, { bg: string; surfaceRaised: string; linkColor: string; text: string; textFaint: string }> = {
+  dark: {
+    bg: '#0d1013',
+    surfaceRaised: '#202830',
+    linkColor: '#5b6a75',
+    text: '#f0f3f5',
+    textFaint: '#8d9aa2',
+  },
+  light: {
+    bg: '#f5f6f7',
+    surfaceRaised: '#eef1f3',
+    linkColor: '#7b8793',
+    text: '#14181b',
+    textFaint: '#55616b',
+  },
+}
 
 // A small chip/device glyph, shown as a corner badge on nodes that carry a
 // device-plugin overlay (internal/aggregate's PluginOverlay) — i.e. a
 // resource the plugin itself reports on, distinct from what containerlab or
-// Sakutei see. Drawn as a tiny inline SVG so it tracks the dark palette
-// exactly rather than pulling in an icon font/library for one glyph.
-const PLUGIN_BADGE = `data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">` +
-    `<rect x="7" y="7" width="10" height="10" rx="1.5" fill="none" stroke="${TEXT}" stroke-width="2"/>` +
-    `<path d="M9 7V3M15 7V3M9 21v-4M15 21v-4M7 9H3M7 15H3M21 9h-4M21 15h-4" stroke="${TEXT}" stroke-width="2" stroke-linecap="round"/>` +
-    `</svg>`,
-)}`
+// Sakutei see. Drawn as a tiny inline SVG so it tracks the active theme's
+// text color exactly rather than pulling in an icon font/library for one
+// glyph.
+function pluginBadge(textHex: string): string {
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">` +
+      `<rect x="7" y="7" width="10" height="10" rx="1.5" fill="none" stroke="${textHex}" stroke-width="2"/>` +
+      `<path d="M9 7V3M15 7V3M9 21v-4M15 21v-4M7 9H3M7 15H3M21 9h-4M21 15h-4" stroke="${textHex}" stroke-width="2" stroke-linecap="round"/>` +
+      `</svg>`,
+  )}`
+}
 
 // Device role, used only to pick the node's shape -- a visual hint drawn
 // from the same place network diagrams conventionally put it (shape =
@@ -69,14 +89,14 @@ const ROLE_SHAPE: Record<Role, string> = {
 // size with the label placed underneath instead of a label-sized box.
 const COMPACT_ROLES = new Set<Role>(['router', 'firewall'])
 
-function nodeElement(n: SnapshotNode): ElementDefinition {
+function nodeElement(n: SnapshotNode, theme: Theme): ElementDefinition {
   const role = inferRole(n)
   return {
     group: 'nodes',
     data: {
       id: n.name,
       label: n.name,
-      borderColor: statusColorHex(n.color),
+      borderColor: statusColorHex(n.color, theme),
       statusLabel: statusLabel(n.color),
       hasPlugin: Boolean(n.plugin),
       kind: n.kind ?? '',
@@ -129,7 +149,9 @@ function linkElement(
   }
 }
 
-const STYLE: StylesheetJsonBlock[] = [
+function buildStyle(theme: Theme): StylesheetJsonBlock[] {
+  const hex = THEME_HEX[theme]
+  return [
   {
     selector: 'node',
     style: {
@@ -137,11 +159,11 @@ const STYLE: StylesheetJsonBlock[] = [
       width: 'label',
       height: 34,
       padding: '10px',
-      'background-color': SURFACE_RAISED,
+      'background-color': hex.surfaceRaised,
       'border-width': 3,
       'border-color': 'data(borderColor)',
       label: 'data(label)',
-      color: TEXT,
+      color: hex.text,
       'font-family': 'ui-monospace, Consolas, monospace',
       'font-size': 12,
       'text-valign': 'center',
@@ -161,7 +183,7 @@ const STYLE: StylesheetJsonBlock[] = [
   {
     selector: 'node[?hasPlugin]',
     style: {
-      'background-image': PLUGIN_BADGE,
+      'background-image': pluginBadge(hex.text),
       'background-width': 14,
       'background-height': 14,
       'background-position-x': '100%',
@@ -188,7 +210,7 @@ const STYLE: StylesheetJsonBlock[] = [
     selector: 'node:selected',
     style: {
       'border-width': 4,
-      'overlay-color': TEXT,
+      'overlay-color': hex.text,
       'overlay-opacity': 0.12,
       'overlay-padding': 6,
     },
@@ -206,14 +228,14 @@ const STYLE: StylesheetJsonBlock[] = [
       // straight lines cross more often -- the crossings themselves are easier
       // to read through than a bend is.
       width: 1.5,
-      'line-color': BORDER,
+      'line-color': hex.linkColor,
       'curve-style': 'straight',
       'target-arrow-shape': 'none',
       label: 'data(label)',
       'font-size': 9,
-      color: TEXT_FAINT,
+      color: hex.textFaint,
       'font-family': 'ui-monospace, Consolas, monospace',
-      'text-background-color': '#0d1013',
+      'text-background-color': hex.bg,
       'text-background-opacity': 0.85,
       'text-background-padding': '2px',
     },
@@ -222,11 +244,13 @@ const STYLE: StylesheetJsonBlock[] = [
     selector: 'edge.dimmed',
     style: { opacity: 0.08 },
   },
-]
+  ]
+}
 
 interface Props {
   nodes: SnapshotNode[]
   links: SnapshotLink[]
+  theme: Theme
 }
 
 /**
@@ -244,7 +268,7 @@ interface Props {
  * changes, so a color flip (e.g. a disturb/fix demo action) never resets
  * the user's pan/zoom or reshuffles the layout.
  */
-export function TopologyDiagram({ nodes, links }: Props) {
+export function TopologyDiagram({ nodes, links, theme }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const cyRef = useRef<Core | null>(null)
   const [selected, setSelected] = useState<SnapshotNode | null>(null)
@@ -255,12 +279,15 @@ export function TopologyDiagram({ nodes, links }: Props) {
     return (['switch', 'router', 'firewall', 'server'] as const).filter((r) => present.has(r))
   }, [nodes])
 
-  // Create the cytoscape instance once.
+  // Create the cytoscape instance once. The theme it starts with is
+  // whatever's current at mount time; later theme switches are applied by
+  // the effect below rather than by recreating the instance, so switching
+  // themes never resets pan/zoom or the layout.
   useEffect(() => {
     if (!containerRef.current) return
     const cy = cytoscape({
       container: containerRef.current,
-      style: STYLE,
+      style: buildStyle(theme),
       elements: [],
       wheelSensitivity: 0.25,
       minZoom: 0.3,
@@ -271,7 +298,14 @@ export function TopologyDiagram({ nodes, links }: Props) {
       cy.destroy()
       cyRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Re-skin the existing graph when the theme changes, without touching
+  // elements, pan, zoom, or layout.
+  useEffect(() => {
+    cyRef.current?.style(buildStyle(theme))
+  }, [theme])
 
   // Keep the "selected node" side panel in sync with clicks, independent of
   // the snapshot-diffing effect below.
@@ -343,7 +377,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
         const existing = cy.getElementById(id)
         if (existing.nonempty()) {
           existing.data({
-            borderColor: statusColorHex(n.color),
+            borderColor: statusColorHex(n.color, theme),
             statusLabel: statusLabel(n.color),
             hasPlugin: Boolean(n.plugin),
             kind: n.kind ?? '',
@@ -353,7 +387,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
             shape: ROLE_SHAPE[role],
           })
         } else {
-          const el = nodeElement(n)
+          const el = nodeElement(n, theme)
           el.data.shape = ROLE_SHAPE[role]
           cy.add(el)
           structureChanged = true
@@ -388,7 +422,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
         minLen: (edge: cytoscape.EdgeSingular) => (edge.data('tierDelta') as number) || 0,
       } as cytoscape.LayoutOptions).run()
     }
-  }, [nodes, links])
+  }, [nodes, links, theme])
 
   // Dim nodes/edges that don't match the filter text, instead of removing
   // them -- keeps the layout stable while narrowing attention.
@@ -449,7 +483,7 @@ export function TopologyDiagram({ nodes, links }: Props) {
             gap: 12,
           }}
         >
-          <Legend roles={roles} />
+          <Legend roles={roles} theme={theme} />
           {selected ? <NodeDetail node={selected} /> : null}
         </div>
       </div>
@@ -467,7 +501,7 @@ const ROLE_LABEL: Record<Role, string> = {
   unknown: 'unknown',
 }
 
-function Legend({ roles }: { roles: readonly Role[] }) {
+function Legend({ roles, theme }: { roles: readonly Role[]; theme: Theme }) {
   return (
     <div
       style={{
@@ -482,7 +516,7 @@ function Legend({ roles }: { roles: readonly Role[] }) {
     >
       {LEGEND_COLORS.map((c) => (
         <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <StatusDot color={statusColorHex(c)} />
+          <StatusDot color={statusColorHex(c, theme)} />
           <span style={{ color: 'var(--text-muted)' }}>{statusLabel(c)}</span>
         </div>
       ))}

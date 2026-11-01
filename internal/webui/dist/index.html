@@ -5,8 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>clab-view</title>
-    <script type="module" crossorigin src="/assets/index-C6IyhBzC.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BIJVpdeh.css">
+    <script>
+      // Set the theme attribute before first paint, so a returning visitor
+      // (or anyone whose OS prefers light mode) doesn't see a flash of the
+      // wrong theme while React mounts. Mirrors theme.ts's own fallback
+      // order; kept duplicated here on purpose since this has to run
+      // before any module script loads.
+      (function () {
+        var stored = localStorage.getItem('clab-view-theme')
+        var theme =
+          stored === 'dark' || stored === 'light'
+            ? stored
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark'
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-DySbObii.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DxB7uNnE.css">
   </head>
   <body>
     <div id="root"></div>
